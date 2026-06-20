@@ -1,158 +1,161 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>WorldFinder Proximity Engine</title>
-    
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pocketbase/0.21.1/pocketbase.umd.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>WorldFinder Proximity Engine</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <style>
-        body, html { 
-            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
-            background: #1a1a1a; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
-        #map { width: 100%; height: 100%; z-index: 1; }
-        
-        .mobile-ui-container {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; width: 90%; max-width: 400px; display: flex; flex-direction: column; gap: 12px;
-        }
-        .action-btn {
-            background: #ff5a5f; color: white; border: none; padding: 16px;
-            border-radius: 12px; font-size: 16px; font-weight: bold;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer; text-align: center;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .action-btn:active { background: #e04e52; transform: scale(0.98); }
+    <style>
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+            background: #1a1a1a; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        #map { width: 100%; height: 100%; z-index: 1; }
+        
+        .mobile-ui-container {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; width: 90%; max-width: 400px; display: flex; flex-direction: column; gap: 12px;
+        }
+        .action-btn {
+            background: #ff5a5f; color: white; border: none; padding: 16px;
+            border-radius: 12px; font-size: 16px; font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer; text-align: center;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .action-btn:active { background: #e04e52; transform: scale(0.98); }
 
-        .user-location-dot {
-            background: #007aff; border: 3px solid white; border-radius: 50%;
-            box-shadow: 0 0 10px rgba(0,122,255,0.6);
-        }
-    </style>
+        .user-location-dot {
+            background: #007aff; border: 3px solid white; border-radius: 50%;
+            box-shadow: 0 0 10px rgba(0,122,255,0.6);
+        }
+    </style>
 </head>
 <body>
 
-    <div id="map"></div>
+    <div id="map"></div>
 
-    <div class="mobile-ui-container">
-        <button class="action-btn" id="dropPinBtn">📍 Drop Pin at My Location</button>
-    </div>
+    <div class="mobile-ui-container">
+        <button class="action-btn" id="dropPinBtn">📍 Drop Pin at My Location</button>
+    </div>
 
-    <script>
-        const map = L.map('map', { zoomControl: false }).setView([33.4242, -111.9281], 16);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+    <script type="module">
+        import PocketBase from 'https://cdn.jsdelivr.net/npm/pocketbase@0.22.21/+esm';
 
-        const pb = new PocketBase('https://worldfinder-worldfinder.hf.space');
-        
-        let currentUserLatLng = null;
-        let userLocationMarker = null;
-        
-        // GEOFENCE CONFIGURATION: Set maximum allowed distance in meters
-        const MAX_RADIUS_METERS = 200; 
+        // Initialize map centered roughly on the Tempe / ASU region
+        const map = L.map('map', { zoomControl: false }).setView([33.4242, -111.9281], 16);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        // Draw function
-        function drawPinOnMap(pinData) {
-            const createdTime = new Date(pinData.created); 
-            const lifespan = 60 * 60 * 1000; 
-            const expTime = new Date(createdTime.getTime() + lifespan);
-            const expTimeString = expTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        // Live cloud instance database hook
+        const pb = new PocketBase('https://worldfinder-worldfinder.hf.space');
+        
+        let currentUserLatLng = null;
+        let userLocationMarker = null;
+        
+        // GEOFENCE CONFIGURATION: Set maximum allowed distance in meters
+        const MAX_RADIUS_METERS = 200; 
 
-            const currentTime = new Date();
-            const millisecondsLeft = expTime.getTime() - currentTime.getTime();
+        // Draw function handles visual popups and automated frontend fade-out timing
+        function drawPinOnMap(pinData) {
+            const createdTime = new Date(pinData.created); 
+            const lifespan = 60 * 60 * 1000; 
+            const expTime = new Date(createdTime.getTime() + lifespan);
+            const expTimeString = expTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
-            if (millisecondsLeft <= -60000) return; 
+            const currentTime = new Date();
+            const millisecondsLeft = expTime.getTime() - currentTime.getTime();
 
-            const marker = L.marker([pinData.lat, pinData.lng]).addTo(map).bindPopup(`
-                <div style="font-family: sans-serif;">
-                    <strong>${pinData.message}</strong><br>
-                    <span style="color: red; font-size: 11px; font-weight: bold;">⏱️ Expires at ${expTimeString}</span>
-                </div>
-            `);
+            if (millisecondsLeft <= -60000) return; 
 
-            if (millisecondsLeft > 0) {
-                setTimeout(() => { map.removeLayer(marker); }, millisecondsLeft);
-            }
-        }
+            const marker = L.marker([pinData.lat, pinData.lng]).addTo(map).bindPopup(`
+                <div style="font-family: sans-serif;">
+                    <strong>${pinData.message}</strong><br>
+                    <span style="color: red; font-size: 11px; font-weight: bold;">⏱️ Expires at ${expTimeString}</span>
+                </div>
+            `);
 
-        // Fetch past markers
-        async function loadExistingPins() {
-            try {
-                const records = await pb.collection('pins').getList(1, 50, { sort: '-created' });
-                records.items.forEach(pinData => {
-                    if (pinData.lat && pinData.lng) drawPinOnMap(pinData);
-                });
-            } catch (err) { console.log(err); }
-        }
-        loadExistingPins();
+            if (millisecondsLeft > 0) {
+                setTimeout(() => { map.removeLayer(marker); }, millisecondsLeft);
+            }
+        }
 
-        // Subscribe to real-time events
-        pb.collection('pins').subscribe('*', function (e) {
-            if (e.action === 'create') drawPinOnMap(e.record);
-        });
+        // Fetch past markers from the database instance
+        async function loadExistingPins() {
+            try {
+                const records = await pb.collection('pins').getList(1, 50, { sort: '-created' });
+                records.items.forEach(pinData => {
+                    if (pinData.lat && pinData.lng) drawPinOnMap(pinData);
+                });
+            } catch (err) { console.log("Error pulling historical pins:", err); }
+        }
+        loadExistingPins();
 
-        // Track live GPS hardware
-        if (navigator.geolocation) {
-            navigator.geolocation.watchPosition(
-                (position) => {
-                    const lat = position.coords.latitude;
-                    const lng = position.coords.longitude;
-                    currentUserLatLng = [lat, lng];
+        // Subscribe to real-time events broadcasted by PocketBase
+        pb.collection('pins').subscribe('*', function (e) {
+            if (e.action === 'create') drawPinOnMap(e.record);
+        });
 
-                    if (!userLocationMarker) {
-                        map.setView(currentUserLatLng, 17);
-                        const blueDotIcon = L.divIcon({ className: 'user-location-dot', iconSize: [14, 14] });
-                        userLocationMarker = L.marker(currentUserLatLng, { icon: blueDotIcon }).addTo(map);
-                    } else {
-                        userLocationMarker.setLatLng(currentUserLatLng);
-                    }
-                },
-                (error) => { console.log("GPS unavailable."); },
-                { enableHighAccuracy: true }
-            );
-        }
+        // Track live hardware GPS location coordinates
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    currentUserLatLng = [lat, lng];
 
-        // --- HELPER FUNCTION: SEND PIN TO SERVER ---
-        async function sendPinToDatabase(message, lat, lng) {
-            try {
-                await pb.collection('pins').create({ message: message, lat: lat, lng: lng });
-            } catch (err) { alert("Database offline!"); }
-        }
+                    if (!userLocationMarker) {
+                        map.setView(currentUserLatLng, 17);
+                        const blueDotIcon = L.divIcon({ className: 'user-location-dot', iconSize: [14, 14] });
+                        userLocationMarker = L.marker(currentUserLatLng, { icon: blueDotIcon }).addTo(map);
+                    } else {
+                        userLocationMarker.setLatLng(currentUserLatLng);
+                    }
+                },
+                (error) => { console.log("GPS signal unavailable."); },
+                { enableHighAccuracy: true }
+            );
+        }
 
-        // OPTION A: Drop directly at feet via the interface button (Always Allowed)
-        document.getElementById('dropPinBtn').addEventListener('click', () => {
-            if (!currentUserLatLng) { alert("Waiting for GPS signal..."); return; }
-            const message = prompt("What's happening right here?");
-            if (message) sendPinToDatabase(message, currentUserLatLng[0], currentUserLatLng[1]);
-        });
+        // --- HELPER FUNCTION: SEND PIN TO SERVER ---
+        async function sendPinToDatabase(message, lat, lng) {
+            try {
+                await pb.collection('pins').create({ message: message, lat: lat, lng: lng });
+            } catch (err) { alert("Database offline or pin rejected!"); }
+        }
 
-        // OPTION B: Drop via direct Map Tap (Enforces Proximity Radius Limit)
-        map.on('click', function(e) {
-            if (!currentUserLatLng) {
-                alert("Can't verify your proximity because your device GPS is turned off.");
-                return;
-            }
+        // OPTION A: Drop directly at feet via the interface button (Always Allowed)
+        document.getElementById('dropPinBtn').addEventListener('click', () => {
+            if (!currentUserLatLng) { alert("Waiting for GPS signal..."); return; }
+            const message = prompt("What's happening right here?");
+            if (message) sendPinToDatabase(message, currentUserLatLng[0], currentUserLatLng[1]);
+        });
 
-            // Convert raw coordinates into Leaflet LatLng objects to use native distance math
-            const clickedLocation = e.latlng;
-            const userLocation = L.latLng(currentUserLatLng[0], currentUserLatLng[1]);
+        // OPTION B: Drop via direct Map Tap (Enforces Proximity Radius Limit)
+        map.on('click', function(e) {
+            if (!currentUserLatLng) {
+                alert("Can't verify your proximity because your device GPS is turned off.");
+                return;
+            }
 
-            // Leaflet returns the exact distance over the earth's surface in meters
-            const distance = userLocation.distanceTo(clickedLocation);
+            // Convert raw coordinates into Leaflet LatLng objects to use native distance math
+            const clickedLocation = e.latlng;
+            const userLocation = L.latLng(currentUserLatLng[0], currentUserLatLng[1]);
 
-            if (distance > MAX_RADIUS_METERS) {
-                alert(`Too far away! You can only drop pins within ${MAX_RADIUS_METERS} meters of your physical location. (You are currently ${Math.round(distance)}m away)`);
-                return; // Rejects and stops the execution loop completely
-            }
+            // Calculate precise geographic distance over the earth surface in meters
+            const distance = userLocation.distanceTo(clickedLocation);
 
-            // If within boundary radius, allow the pin to drop
-            const message = prompt("What's happening over there?");
-            if (message) sendPinToDatabase(message, clickedLocation.lat, clickedLocation.lng);
-        });
-    </script>
+            if (distance > MAX_RADIUS_METERS) {
+                alert(`Too far away! You can only drop pins within ${MAX_RADIUS_METERS} meters of your physical location. (You are currently ${Math.round(distance)}m away)`);
+                return; // Rejects entry completely
+            }
+
+            // Allow prompt option if within circle
+            const message = prompt("What's happening over there?");
+            if (message) sendPinToDatabase(message, clickedLocation.lat, clickedLocation.lng);
+        });
+    </script>
 </body>
 </html>
