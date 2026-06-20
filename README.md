@@ -1,3 +1,3 @@
 # Worldfinder
 Demo version of worldfinder.
-work in progress
+work in progress.
