@@ -188,13 +188,26 @@
         const activeMarkers = {};
         let pendingPinLatLng = null; // State variable holding layout coordinates while panel is open
 
-        // 3. Setup Anonymous Browser Identity Handshake
-        if (!localStorage.getItem('wf_guest_id')) {
-            localStorage.setItem('wf_guest_id', 'anon_' + Math.random().toString(36).substring(2, 15));
+        // ==========================================
+        // 3. Hardened Cryptographic Session Loop
+        // ==========================================
+        function generateSecureDeviceToken() {
+            const buffer = new Uint8Array(16);
+            window.crypto.getRandomValues(buffer);
+            return Array.from(buffer, b => b.toString(16).padStart(2, '0')).join('');
         }
-        const currentGuestID = localStorage.getItem('wf_guest_id');
-        console.log("Session Identity Loaded:", currentGuestID);
 
+        // Save the master secret locally in the phone's browser storage
+        if (!localStorage.getItem('wf_device_secret')) {
+            localStorage.setItem('wf_device_secret', generateSecureDeviceToken());
+        }
+        const currentDeviceSecret = localStorage.getItem('wf_device_secret');
+        
+        // Grab the first 15 characters to act as the public database user_id.
+        // Clean, safe, standard text string. Zero risk of browser crashing.
+        const currentGuestID = currentDeviceSecret.substring(0, 15); 
+        console.log("Secure Identity Anchored:", currentGuestID);
+        
         // 4. Time-Aware Rendering Engine
         function drawPinOnMap(pinData) {
             if (activeMarkers[pinData.id]) return;
