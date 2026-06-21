@@ -57,28 +57,34 @@
         const MAX_RADIUS_METERS = 200; 
 
         function drawPinOnMap(pinData) {
-            const createdTime = new Date(pinData.created); 
-            const lifespan = 60 * 60 * 1000; 
-            const expTime = new Date(createdTime.getTime() + lifespan);
-            const expTimeString = expTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    const createdTime = new Date(pinData.created); 
+    const lifespan = 60 * 60 * 1000; // 1 hour in milliseconds
+    const expTime = new Date(createdTime.getTime() + lifespan);
+    const expTimeString = expTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
-            const currentTime = new Date();
-            const millisecondsLeft = expTime.getTime() - currentTime.getTime();
+    const currentTime = new Date();
+    const millisecondsLeft = expTime.getTime() - currentTime.getTime();
 
-            if (millisecondsLeft <= -60000) return; 
+    // If it's already expired by more than a minute, don't even draw it
+    if (millisecondsLeft <= -60000) return; 
 
-            const marker = L.marker([pinData.lat, pinData.lng]).addTo(map).bindPopup(`
-                <div style="font-family: sans-serif;">
-                    <strong>${pinData.message}</strong><br>
-                    <span style="color: red; font-size: 11px; font-weight: bold;">⏱️ Expires at ${expTimeString}</span>
-                </div>
-            `);
+    // Create and add the marker to the map
+    const marker = L.marker([pinData.lat, pinData.lng]).addTo(map).bindPopup(`
+        <div style="font-family: sans-serif;">
+            <strong>${pinData.message}</strong><br>
+            <span style="color: red; font-size: 11px; font-weight: bold;">⏱️ Expires at ${expTimeString}</span>
+        </div>
+    `);
 
-            if (millisecondsLeft > 0) {
-                setTimeout(() => { map.removeLayer(marker); }, millisecondsLeft);
-            }
-        }
-
+    // --- THE LIVE CLEANUP FIX ---
+    // If the pin is still alive, set a live countdown timer in the browser
+    if (millisecondsLeft > 0) {
+        setTimeout(() => { 
+            map.removeLayer(marker); 
+            console.log(`Pin "${pinData.message}" expired and was removed in real-time.`);
+        }, millisecondsLeft);
+    }
+}
         async function loadExistingPins() {
             try {
                 const records = await pb.collection('pins').getList(1, 50, { sort: '-created' });
