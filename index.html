@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>WorldFinder</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -16,6 +16,7 @@
             background-color: #111111;
             overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
         }
         #map {
             width: 100vw;
@@ -25,171 +26,235 @@
             left: 0;
             z-index: 1;
         }
-        #dropPinBtn {
+
+        /* HARD CORE INTERFACE: FLOATING HUD IN THUMB ZONE */
+        #pillControl {
             position: absolute;
             bottom: 30px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 1000;
-            background: #007bff;
-            color: white;
+            background: rgba(26, 31, 44, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            border-radius: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            padding: 4px;
+            overflow: hidden;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+        }
+        .pill-btn {
+            background: none;
             border: none;
-            padding: 15px 30px;
-            font-size: 16px;
-            border-radius: 30px;
-            font-weight: bold;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            color: rgba(255, 255, 255, 0.6);
+            padding: 14px 24px;
+            font-size: 14px;
+            font-weight: 700;
             cursor: pointer;
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
             transition: all 0.2s ease;
+            white-space: nowrap;
         }
-        #dropPinBtn:hover {
-            background: #0056b3;
-            transform: translateX(-50%) scale(1.03);
+        .pill-btn:hover, .pill-btn.active {
+            color: #fff;
         }
-        .user-location-dot {
-            background-color: #007bff;
-            border: 2px solid white;
-            border-radius: 50%;
-            box-shadow: 0 0 10px #007bff;
-        }
+        #dropBtn.active { background: #007bff; box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3); }
+        #vibeBtn.active { background: #d500f9; box-shadow: 0 4px 12px rgba(213, 0, 249, 0.3); }
 
-        /* MODERN SLIDE-UP FORM PANEL */
-        #inputPanel {
+        /* TELEMETRY SNAG BUTTON */
+        #telemetryBtn {
             position: absolute;
-            bottom: -350px;
+            bottom: 100px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(26, 31, 44, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: white;
+            font-size: 18px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        #telemetryBtn.tracking { color: #007bff; border-color: #007bff; }
+
+        /* TOP CORNER ANCHOR PLATES */
+        .hud-icon-btn {
+            position: absolute;
+            top: 20px;
+            z-index: 1000;
+            background: rgba(26, 31, 44, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            font-size: 16px;
+        }
+        #lifelineBtn { left: 20px; }
+
+        /* ONE-LAYER TUCKED OVERLAY DRAWERS */
+        .slide-drawer {
+            position: absolute;
+            bottom: -500px;
             left: 50%;
             transform: translateX(-50%);
-            width: 90%;
-            max-width: 400px;
-            background: #1a1f2c;
+            width: 92%;
+            max-width: 420px;
+            background: rgba(26, 31, 44, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 20px 20px 20px 20px;
-            padding: 20px;
+            border-radius: 24px;
+            padding: 24px;
             box-sizing: border-box;
             z-index: 1001;
-            box-shadow: 0 -10px 25px rgba(0,0,0,0.5);
+            box-shadow: 0 -15px 35px rgba(0,0,0,0.6);
             transition: bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+            color: white;
         }
-        #inputPanel.active {
-            bottom: 30px;
-        }
-        #inputPanel input {
+        .slide-drawer.active { bottom: 30px; }
+
+        .slide-drawer input, .slide-drawer select {
             width: 100%;
             background: #11141d;
             border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 8px;
-            padding: 12px;
+            border-radius: 12px;
+            padding: 14px;
             color: white;
             box-sizing: border-box;
             font-size: 14px;
-            margin-bottom: 12px;
+            margin-bottom: 16px;
             outline: none;
         }
-        #inputPanel select {
-            width: 100%;
-            background: #11141d;
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 8px;
-            padding: 12px;
-            color: white;
-            box-sizing: border-box;
-            font-size: 14px;
-            margin-bottom: 15px;
-            outline: none;
+        .drawer-header {
+            font-size: 18px; font-weight: 700; margin: 0 0 16px 0; display: flex; justify-content: space-between; align-items: center;
         }
-        .panel-actions {
-            display: flex;
-            gap: 10px;
-        }
-        .btn {
-            flex: 1;
-            padding: 12px;
-            border-radius: 8px;
-            border: none;
-            font-weight: bold;
-            font-size: 14px;
-            cursor: pointer;
-        }
-        .btn-primary { background: #007bff; color: white; }
-        .btn-secondary { background: #343a40; color: #ccc; }
+        .close-x { cursor: pointer; color: rgba(255,255,255,0.4); font-size: 18px; }
 
-        /* NEON MULTI-TIER VISUAL GLOWS */
-        .neon-pin-icon {
-            background: #ff0055; border: 2px solid #fff; border-radius: 50%;
-            box-shadow: 0 0 12px #ff0055;
+        /* MANAGEMENT FEED LISTS */
+        .scroll-list { max-height: 200px; overflow-y: auto; margin-bottom: 16px; }
+        .list-item {
+            background: rgba(255,255,255,0.04); padding: 12px; border-radius: 10px;
+            margin-bottom: 8px; font-size: 13px; display: flex; justify-content: space-between; align-items: center;
         }
-        .pro-pin-icon {
-            background: #00e5ff; border: 2px solid #fff; border-radius: 50%;
-            box-shadow: 0 0 12px #00e5ff;
-        }
-        .anchor-pin-icon {
-            background: #ffea00; border: 2px solid #fff; border-radius: 50%;
-            box-shadow: 0 0 12px #ffea00;
-        }
-        .landmark-pin-icon {
-            background: #d500f9; border: 2px solid #fff; border-radius: 50%;
-            box-shadow: 0 0 12px #d500f9;
+        .delete-inline-btn {
+            background: #ff0055; border: none; color: white; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer;
         }
 
-        /* Dark Theme Popup Styles overriding Leaflet defaults */
+        /* AREA FEED CARD SCROLLING ENTRIES */
+        .vibe-card-entry {
+            border-left: 3px solid #007bff; padding-left: 10px; margin-bottom: 12px;
+        }
+        .vibe-meta { font-size: 11px; color: rgba(255,255,255,0.5); display: flex; gap: 8px; margin-top: 4px;}
+
+        /* NEON TIERS GRAPHICS */
+        .user-location-dot { background-color: #007bff; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 14px #007bff; }
+        .neon-pin-icon { background: #ff0055; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 12px #ff0055; }
+        .pro-pin-icon { background: #00e5ff; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 12px #00e5ff; }
+        .anchor-pin-icon { background: #ffea00; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 12px #ffea00; }
+        .landmark-pin-icon { background: #d500f9; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 12px #d500f9; }
+
+        /* DARK GLASSMORPHISM OVERRIDES */
         .leaflet-popup-content-wrapper {
-            background: #1a1f2c !important;
-            color: white !important;
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 12px !important;
+            background: rgba(26, 31, 44, 0.95) !important; color: white !important;
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 14px !important; box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
         }
-        .leaflet-popup-tip {
-            background: #1a1f2c !important;
-        }
+        .leaflet-popup-tip { background: rgba(26, 31, 44, 0.95) !important; }
     </style>
 </head>
 <body>
 
     <div id="map"></div>
-    <button id="dropPinBtn">📌 Drop a Pin Here</button>
 
-    <div id="inputPanel">
-        <h4 style="margin: 0 0 10px 0; color: #fff; font-size: 16px;">Drop a Local Story</h4>
+    <div id="lifelineBtn" class="hud-icon-btn" title="My Lifeline">👤</div>
+    
+    <div id="telemetryBtn" class="tracking" title="Recenter Map">🎯</div>
+
+    <div id="pillControl">
+        <button id="dropBtn" class="pill-btn active">📌 Drop</button>
+        <button id="vibeBtn" class="pill-btn">🔮 Vibe</button>
+    </div>
+
+    <div id="dropDrawer" class="slide-drawer">
+        <div class="drawer-header"><span>Drop a Pulse</span><span class="close-x" onclick="closeAllDrawers()">✕</span></div>
         <input type="text" id="pinMessageInput" placeholder="What's happening right here?" maxlength="120">
-        
-        <label style="color: #888; font-size: 11px; display: block; margin-bottom: 5px; font-weight: bold; letter-spacing: 0.5px;">CHOOSE LIFESPAN</label>
         <select id="pinTierSelect">
             <option value="1">1 Hour — Free Pulse</option>
-            <option value="6">6 Hours — Pro Spot (Simulated $1)</option>
-            <option value="24">24 Hours — Anchor Spot (Simulated $2)</option>
-            <option value="168">1 Week — Landmark (Simulated $6)</option>
+            <option value="6">6 Hours — Pro Spot ($1)</option>
+            <option value="24">24 Hours — Anchor Spot ($2)</option>
+            <option value="168">1 Week — Landmark ($6)</option>
         </select>
-
-        <div class="panel-actions">
-            <button class="btn btn-secondary" id="cancelPinBtn">Cancel</button>
-            <button class="btn btn-primary" id="submitPinBtn">Publish Pin</button>
+        <div style="display: flex; gap: 12px;">
+            <button class="pill-btn" style="flex:1; background: #343a40; justify-content: center;" onclick="closeAllDrawers()">Cancel</button>
+            <button class="pill-btn active" style="flex:1; background: #007bff; justify-content: center;" id="submitPinBtn">Publish</button>
         </div>
+    </div>
+
+    <div id="lifelineDrawer" class="slide-drawer">
+        <div class="drawer-header"><span>My Device Lifeline</span><span class="close-x" onclick="closeAllDrawers()">✕</span></div>
+        <p style="font-size: 12px; color: rgba(255,255,255,0.6); margin: -8px 0 16px 0;">Your device is your identity passport. No login screens required.</p>
+        
+        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+            <button class="pill-btn" style="font-size:12px; background: rgba(255,255,255,0.08); padding: 8px 14px;" onclick="copyRecoveryKey()">📋 Copy Secret Key</button>
+            <button class="pill-btn" style="font-size:12px; background: rgba(255,255,255,0.08); padding: 8px 14px;" onclick="importRecoveryKey()">📥 Import Key</button>
+        </div>
+
+        <h5 style="margin: 0 0 8px 0; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; color: #888;">Active Live Drops</h5>
+        <div class="scroll-list" id="myPinsList">
+            </div>
+    </div>
+
+    <div id="vibeDrawer" class="slide-drawer">
+        <div class="drawer-header"><span id="vibeCardTitle">Local Hotspot</span><span class="close-x" onclick="closeAllDrawers()">✕</span></div>
+        <div class="scroll-list" id="vibeFeedContainer" style="max-height: 260px;">
+            </div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/pocketbase/js-sdk@latest/dist/pocketbase.umd.js"></script>
 
     <script>
-        console.log("App initialization start...");
-
-        // 1. Core Map Configuration
-        const map = L.map('map', { zoomControl: false }).setView([33.4242, -111.9281], 16);
+        // 1. HARDENED CANVAS CONFIGURATION FOR LOWER-END MOBILE HARDWARE
+        const map = L.map('map', { 
+            zoomControl: false,
+            preferCanvas: true // Direct drawing optimization bypassing DOM tree latency
+        }).setView([33.4242, -111.9281], 16);
+        
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        console.log("Leaflet map canvas mounted.");
 
-        // 2. Database Connection
         const pb = new PocketBase('https://worldfinder-worldfinder.hf.space');
         
         let currentUserLatLng = null;
         let userLocationMarker = null;
+        let isTrackingLock = true;
+        let currentMode = 'drop'; // 'drop' or 'vibe'
         const MAX_RADIUS_METERS = 200; 
 
-        // SMART TRACKING: Tracks dynamic map instances
         const activeMarkers = {};
-        let pendingPinLatLng = null; // State variable holding layout coordinates while panel is open
+        const globalRawRecords = {}; // Memory cache for programmatic grouping loops
+        let currentClusterGlows = []; 
+        let pendingPinLatLng = null;
 
         // ==========================================
-        // 3. Hardened Cryptographic Session Loop
+        // 2. ACCOUNTLESS PERSISTENCE & SECURITY ANCHOR
         // ==========================================
         function generateSecureDeviceToken() {
             const buffer = new Uint8Array(16);
@@ -197,243 +262,326 @@
             return Array.from(buffer, b => b.toString(16).padStart(2, '0')).join('');
         }
 
-        // Save the master secret locally in the phone's browser storage
         if (!localStorage.getItem('wf_device_secret')) {
             localStorage.setItem('wf_device_secret', generateSecureDeviceToken());
         }
-        const currentDeviceSecret = localStorage.getItem('wf_device_secret');
-        
-        // Grab the first 15 characters to act as the public database user_id.
-        const currentGuestID = currentDeviceSecret.substring(0, 15); 
-        console.log("Secure Identity Anchored:", currentGuestID);
-        
-        // 4. Time-Aware Rendering Engine
+        let currentDeviceSecret = localStorage.getItem('wf_device_secret');
+        let currentGuestID = currentDeviceSecret.substring(0, 15); 
+
+        function copyRecoveryKey() {
+            navigator.clipboard.writeText(currentDeviceSecret);
+            alert("Secret key copied safely to your clipboard string. Save it in your notes app!");
+        }
+
+        function importRecoveryKey() {
+            const key = prompt("Paste your Secret Recovery Key string here:");
+            if (key && key.trim().length >= 15) {
+                localStorage.setItem('wf_device_secret', key.trim());
+                currentDeviceSecret = key.trim();
+                currentGuestID = currentDeviceSecret.substring(0, 15);
+                alert("Identity restored successfully! Synchronizing system details...");
+                location.reload();
+            }
+        }
+
+        // ==========================================
+        // 3. SYNCHRONIZATION AND TIME ARCHITECTURES
+        // ==========================================
         function drawPinOnMap(pinData) {
-            // SOFT DELETE CHECK: Clear marker from screen if flagged by owner
+            globalRawRecords[pinData.id] = pinData;
+
             if (pinData.message === "DELETED_BY_OWNER") {
-                if (activeMarkers[pinData.id]) {
-                    map.removeLayer(activeMarkers[pinData.id]);
-                    delete activeMarkers[pinData.id];
-                    console.log(`Pin ${pinData.id} soft-deleted by owner instruction.`);
-                }
+                if (activeMarkers[pinData.id]) { map.removeLayer(activeMarkers[pinData.id]); delete activeMarkers[pinData.id]; }
+                delete globalRawRecords[pinData.id];
+                rebuildMyPinsDashboard();
+                if (currentMode === 'vibe') triggerMacroVibeCalculations();
                 return;
             }
 
             if (activeMarkers[pinData.id]) return;
 
-            const createdTime = new Date(pinData.created); 
-            const hours = pinData.duration_hours || 1; // Pulls schema tier, defaults to 1h
-            const lifespanInMs = hours * 60 * 60 * 1000; 
-            const expirationTime = new Date(createdTime.getTime() + lifespanInMs);
-            
-            const currentTime = new Date();
-            const millisecondsLeft = expirationTime.getTime() - currentTime.getTime();
+            const millisecondsLeft = new Date(pinData.created).getTime() + (pinData.duration_hours * 60 * 60 * 1000) - new Date().getTime();
+            if (millisecondsLeft <= 0) { delete globalRawRecords[pinData.id]; return; }
 
-            // If the pin expired while browser was offline, ignore it completely
-            if (millisecondsLeft <= 0) return; 
-
-            // Assign color class based on layout metrics
             let pinStyle = 'neon-pin-icon';
-            let label = 'Live Pulse (Free)';
-            
-            if (hours === 6) { pinStyle = 'pro-pin-icon'; label = 'Pro Spot'; }
-            else if (hours === 24) { pinStyle = 'anchor-pin-icon'; label = 'Anchor Spot'; }
-            else if (hours === 168) { pinStyle = 'landmark-pin-icon'; label = 'Landmark Event'; }
+            if (pinData.duration_hours === 6) pinStyle = 'pro-pin-icon';
+            else if (pinData.duration_hours === 24) pinStyle = 'anchor-pin-icon';
+            else if (pinData.duration_hours === 168) pinStyle = 'landmark-pin-icon';
 
-            const customIcon = L.divIcon({ className: pinStyle, iconSize: [12, 12] });
+            const marker = L.marker([pinData.lat, pinData.lng], { 
+                icon: L.divIcon({ className: pinStyle, iconSize: [12, 12] }) 
+            });
 
-            // Identity verification loop
+            if (currentMode === 'drop') marker.addTo(map);
+
             const isOwner = pinData.user_id === currentGuestID;
-            const deleteButtonHtml = isOwner 
-                ? `<br><button onclick="deletePinPermanently('${pinData.id}')" style="margin-top: 10px; background: #ff0055; color: white; border: none; padding: 6px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; width: 100%;">Remove My Pin</button>` 
-                : '';
+            const actionHtml = isOwner ? `<br><button onclick="deletePinPermanently('${pinData.id}')" style="margin-top:10px;" class="delete-inline-btn">Remove My Pin</button>` : '';
 
-            const expTimeString = expirationTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-
-            const marker = L.marker([pinData.lat, pinData.lng], { icon: customIcon }).addTo(map).bindPopup(`
-                <div style="font-family: sans-serif; min-width: 140px;">
-                    <span style="color: #888; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">${label}</span>
-                    <p style="margin: 6px 0; font-size: 14px; font-weight: 500; color: #fff;">${pinData.message}</p>
-                    <span style="color: rgba(255,255,255,0.6); font-size: 11px;">⏱️ Expires at ${expTimeString}</span>
-                    ${deleteButtonHtml}
+            marker.bindPopup(`
+                <div style="min-width:140px;">
+                    <p style="margin:4px 0; font-size:14px; color:#fff;">${pinData.message}</p>
+                    ${actionHtml}
                 </div>
             `);
 
             activeMarkers[pinData.id] = marker;
+            rebuildMyPinsDashboard();
 
-            // Live browser self-destruct pruning sequence
-            setTimeout(() => { 
-                if (activeMarkers[pinData.id]) {
-                    map.removeLayer(marker); 
-                    delete activeMarkers[pinData.id];
-                    console.log(`Pin ${pinData.id} automatically cleared.`);
-                }
+            setTimeout(() => {
+                if (activeMarkers[pinData.id]) { map.removeLayer(activeMarkers[pinData.id]); delete activeMarkers[pinData.id]; }
+                delete globalRawRecords[pinData.id];
+                rebuildMyPinsDashboard();
+                if (currentMode === 'vibe') triggerMacroVibeCalculations();
             }, millisecondsLeft);
         }
 
-        // Global Soft-Delete execution for matched anonymous sessions
         async function deletePinPermanently(pinId) {
-            if (confirm("Do you want to clear this pin from the live map?")) {
+            if (confirm("Clear this pin from the live map network?")) {
                 try {
-                    // Instead of deleting the record, we update it securely
-                    await pb.collection('pins').update(pinId, {
-                        message: "DELETED_BY_OWNER",
-                        user_id: currentGuestID // Passes verified cryptographic signature
-                    });
-                } catch (err) { 
-                    console.error("Deletion rejected by engine:", err); 
-                }
+                    await pb.collection('pins').update(pinId, { message: "DELETED_BY_OWNER", user_id: currentGuestID });
+                } catch (err) { console.error("Rejection safety override triggered.", err); }
             }
         }
 
-        // 5. Synchronization Handlers
-        async function syncPinsPipeline() {
-            try {
-                const records = await pb.collection('pins').getList(1, 50, { sort: '-created' });
-                records.items.forEach(pinData => {
-                    if (pinData.lat && pinData.lng) {
-                        drawPinOnMap(pinData);
+        function rebuildMyPinsDashboard() {
+            const container = document.getElementById('myPinsList');
+            container.innerHTML = "";
+            let dataFound = false;
+
+            for (const id in globalRawRecords) {
+                const item = globalRawRecords[id];
+                if (item.user_id === currentGuestID) {
+                    dataFound = true;
+                    const el = document.createElement('div');
+                    el.className = 'list-item';
+                    el.innerHTML = `
+                        <div style="max-width:70%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${item.message}</div>
+                        <button class="delete-inline-btn" onclick="deletePinPermanently('${item.id}')">Kill</button>
+                    `;
+                    container.appendChild(el);
+                }
+            }
+            if (!dataFound) container.innerHTML = `<div style="font-size:12px; color:#666; text-align:center; padding:10px;">No drops broadcasted yet.</div>`;
+        }
+
+        // ==========================================
+        // 4. "CATCH A VIBE" COMPREHENSIVE DELINEATION LOGIC
+        // ==========================================
+        function triggerMacroVibeCalculations() {
+            currentClusterGlows.forEach(layer => map.removeLayer(layer));
+            currentClusterGlows = [];
+
+            const clusters = [];
+            const radiusThreshold = 0.0015; // Spatial bundling limit (~150 meters)
+
+            for (const id in globalRawRecords) {
+                const pin = globalRawRecords[id];
+                let addedToCluster = false;
+
+                for (const cluster of clusters) {
+                    const distance = Math.sqrt(Math.pow(pin.lat - cluster.center.lat, 2) + Math.pow(pin.lng - cluster.center.lng, 2));
+                    if (distance < radiusThreshold) {
+                        cluster.pins.push(pin);
+                        addedToCluster = true;
+                        break;
                     }
+                }
+
+                if (!addedToCluster) {
+                    clusters.push({ center: { lat: pin.lat, lng: pin.lng }, pins: [pin] });
+                }
+            }
+
+            clusters.forEach(cluster => {
+                const pinCount = cluster.pins.length;
+                const glowCircle = L.circle([cluster.center.lat, cluster.center.lng], {
+                    radius: 70 + (pinCount * 15),
+                    color: '#d500f9',
+                    fillColor: '#d500f9',
+                    fillOpacity: 0.25 + Math.min(pinCount * 0.05, 0.4),
+                    weight: 2
+                }).addTo(map);
+
+                glowCircle.on('click', () => {
+                    map.setView([cluster.center.lat, cluster.center.lng], 17);
+                    openVibeAreaCard(cluster.pins);
                 });
-            } catch (err) { 
-                console.log("Sync loop standby:", err); 
-            }
-        }
 
-        function startLiveSync() {
-            pb.collection('pins').subscribe('*', function (e) {
-                if (e.action === 'create') drawPinOnMap(e.record);
-                if (e.action === 'update') drawPinOnMap(e.record); // Sync soft-deletes in real time
-                if (e.action === 'delete') {
-                    if (activeMarkers[e.record.id]) {
-                        map.removeLayer(activeMarkers[e.record.id]);
-                        delete activeMarkers[e.record.id];
-                    }
-                }
-            }).catch(err => {
-                console.log("Realtime subscription routing limited.");
+                currentClusterGlows.push(glowCircle);
             });
         }
 
-        syncPinsPipeline().then(() => { startLiveSync(); });
-        setInterval(syncPinsPipeline, 2000);
+        function openVibeAreaCard(pinsInCluster) {
+            const container = document.getElementById('vibeFeedContainer');
+            container.innerHTML = "";
+            
+            document.getElementById('vibeCardTitle').innerText = `🔥 ${pinsInCluster.length} Active Local Pulses`;
 
-        // 6. High-Precision Smoothed Geolocation Core
-        let targetLatLng = null;
-        let animationFrameId = null;
+            // CRITICAL ENGINE CALCULATION: Distance-Sorted arrays mapped on user footsteps
+            const sortedPins = pinsInCluster.map(pin => {
+                let distStr = "calculating...";
+                let distVal = 999999;
+                if (currentUserLatLng) {
+                    distVal = L.latLng(currentUserLatLng[0], currentUserLatLng[1]).distanceTo(L.latLng(pin.lat, pin.lng));
+                    distStr = distVal < 1000 ? `${Math.round(distVal)}m away` : `${(distVal/1609.34).toFixed(1)} mi away`;
+                }
+                return { ...pin, _distVal: distVal, _distStr: distStr };
+            }).sort((a, b) => a._distVal - b._distVal);
 
-        function smoothAnimateMarker() {
-            if (!userLocationMarker || !targetLatLng) return;
-            const currentLatLng = userLocationMarker.getLatLng();
-            const deltaLat = targetLatLng[0] - currentLatLng.lat;
-            const deltaLng = targetLatLng[1] - currentLatLng.lng;
-            const ease = 0.1; 
+            sortedPins.forEach(pin => {
+                const el = document.createElement('div');
+                el.className = 'vibe-card-entry';
+                el.innerHTML = `
+                    <div style="font-size:14px; font-weight:500;">${pin.message}</div>
+                    <div class="vibe-meta"><span>📍 ${pin._distStr}</span> • <span>⏱️ ${pin.duration_hours}h tier</span></div>
+                `;
+                el.addEventListener('click', () => {
+                    if (activeMarkers[pin.id]) activeMarkers[pin.id].openPopup();
+                });
+                container.appendChild(el);
+            });
 
-            if (Math.abs(deltaLat) > 0.00001 || Math.abs(deltaLng) > 0.00001) {
-                const newLat = currentLatLng.lat + deltaLat * ease;
-                const newLng = currentLatLng.lng + deltaLng * ease;
-                userLocationMarker.setLatLng([newLat, newLng]);
-                animationFrameId = requestAnimationFrame(smoothAnimateMarker);
+            closeAllDrawers();
+            document.getElementById('vibeDrawer').classList.add('active');
+        }
+
+        // ==========================================
+        // 5. INTERACTION AND INTERFACE STATE SHIFTS
+        // ==========================================
+        document.getElementById('dropBtn').addEventListener('click', () => {
+            if (currentMode === 'drop') {
+                if (!currentUserLatLng) { alert("GPS coordinates are unverified."); return; }
+                openInputDrawer(currentUserLatLng[0], currentUserLatLng[1]);
             } else {
-                userLocationMarker.setLatLng(targetLatLng);
-                cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
+                currentMode = 'drop';
+                document.getElementById('vibeBtn').classList.remove('active');
+                document.getElementById('dropBtn').classList.add('active');
+                closeAllDrawers();
+                currentClusterGlows.forEach(layer => map.removeLayer(layer));
+                for (const id in activeMarkers) activeMarkers[id].addTo(map);
+                map.setZoom(16);
             }
-        }
+        });
 
-        if (navigator.geolocation) {
-            navigator.geolocation.watchPosition(
-                (position) => {
-                    let lat = position.coords.latitude;
-                    let lng = position.coords.longitude;
+        document.getElementById('vibeBtn').addEventListener('click', () => {
+            currentMode = 'vibe';
+            document.getElementById('dropBtn').classList.remove('active');
+            document.getElementById('vibeBtn').classList.add('active');
+            closeAllDrawers();
+            
+            for (const id in activeMarkers) map.removeLayer(activeMarkers[id]);
+            map.animateToZoom ? map.animateToZoom(14) : map.setZoom(14);
+            triggerMacroVibeCalculations();
+        });
 
-                    if (position.coords.accuracy > 40) {
-                        lat = 33.4242; 
-                        lng = -111.9281;
-                    }
+        document.getElementById('lifelineBtn').addEventListener('click', () => {
+            closeAllDrawers();
+            document.getElementById('lifelineDrawer').classList.add('active');
+        });
 
-                    targetLatLng = [lat, lng];
-                    currentUserLatLng = [lat, lng]; 
-
-                    if (!userLocationMarker) {
-                        map.setView(targetLatLng, 17);
-                        const blueDotIcon = L.divIcon({ className: 'user-location-dot', iconSize: [14, 14] });
-                        userLocationMarker = L.marker(targetLatLng, { icon: blueDotIcon }).addTo(map);
-                    } else {
-                        if (!animationFrameId) animationFrameId = requestAnimationFrame(smoothAnimateMarker);
-                    }
-                },
-                (error) => { 
-                    targetLatLng = [33.4242, -111.9281];
-                    currentUserLatLng = [33.4242, -111.9281];
-                    if (!userLocationMarker) {
-                        map.setView(targetLatLng, 17);
-                        const blueDotIcon = L.divIcon({ className: 'user-location-dot', iconSize: [14, 14] });
-                        userLocationMarker = L.marker(targetLatLng, { icon: blueDotIcon }).addTo(map);
-                    }
-                },
-                { enableHighAccuracy: true, maximumAge: 1000, timeout: 4000 }
-            );
-        }
-
-        // 7. Input Drawer UI Panel Operations
         function openInputDrawer(lat, lng) {
             pendingPinLatLng = [lat, lng];
             document.getElementById('pinMessageInput').value = "";
-            document.getElementById('pinTierSelect').value = "1";
-            document.getElementById('dropPinBtn').style.display = "none";
-            document.getElementById('inputPanel').classList.add('active');
+            document.getElementById('dropDrawer').classList.add('active');
         }
 
-        function closeInputDrawer() {
-            document.getElementById('inputPanel').classList.remove('active');
-            setTimeout(() => {
-                document.getElementById('dropPinBtn').style.display = "block";
-            }, 300);
-            pendingPinLatLng = null;
+        function closeAllDrawers() {
+            document.getElementById('dropDrawer').classList.remove('active');
+            document.getElementById('lifelineDrawer').classList.remove('active');
+            document.getElementById('vibeDrawer').classList.remove('active');
         }
-
-        document.getElementById('cancelPinBtn').addEventListener('click', closeInputDrawer);
-
-        document.getElementById('dropPinBtn').addEventListener('click', () => {
-            if (!currentUserLatLng) { alert("Waiting for GPS telemetry signal..."); return; }
-            openInputDrawer(currentUserLatLng[0], currentUserLatLng[1]);
-        });
 
         map.on('click', function(e) {
-            if (!currentUserLatLng) { alert("Proximity verification requires hardware GPS tracking."); return; }
+            if (currentMode !== 'drop') return;
+            if (!currentUserLatLng) return;
             
             const distance = L.latLng(currentUserLatLng[0], currentUserLatLng[1]).distanceTo(e.latlng);
-            if (distance > MAX_RADIUS_METERS) {
-                alert("Target distance is beyond your verified physical proximity boundary.");
-                return;
-            }
+            if (distance > MAX_RADIUS_METERS) { alert("Target coordinate point exceeds proximity boundary."); return; }
             openInputDrawer(e.latlng.lat, e.latlng.lng);
         });
 
-        // 8. Output Database Transmission Operations
         document.getElementById('submitPinBtn').addEventListener('click', async () => {
             const message = document.getElementById('pinMessageInput').value.trim();
             const durationHours = parseInt(document.getElementById('pinTierSelect').value);
             
-            if (!message) { alert("Please type a local story update."); return; }
-            if (!pendingPinLatLng) return;
+            if (!message || !pendingPinLatLng) return;
 
             try {
-                const newRecord = await pb.collection('pins').create({ 
-                    message: message, 
-                    lat: pendingPinLatLng[0], 
-                    lng: pendingPinLatLng[1],
-                    duration_hours: durationHours,
-                    user_id: currentGuestID
+                const record = await pb.collection('pins').create({ 
+                    message: message, lat: pendingPinLatLng[0], lng: pendingPinLatLng[1], duration_hours: durationHours, user_id: currentGuestID
                 });
-                
-                drawPinOnMap(newRecord);
-                closeInputDrawer();
-            } catch (err) { 
-                alert("Database transmission failed."); 
-            }
+                drawPinOnMap(record);
+                closeAllDrawers();
+            } catch (err) { alert("Database error network transmission dropped."); }
         });
+
+        // ==========================================
+        // 6. LAZY-HYDRATION RESILIENT TELEMETRY SIGNAL
+        // ==========================================
+        let watchId = null;
+
+        function startHardwareTracking() {
+            if (!navigator.geolocation) return;
+            
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+
+            watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    let lat = position.coords.latitude;
+                    let lng = position.coords.longitude;
+
+                    if (position.coords.accuracy > 40) { lat = 33.4242; lng = -111.9281; } // Native fallback array
+
+                    currentUserLatLng = [lat, lng];
+
+                    if (!userLocationMarker) {
+                        userLocationMarker = L.marker(currentUserLatLng, { 
+                            icon: L.divIcon({ className: 'user-location-dot', iconSize: [14, 14] }) 
+                        }).addTo(map);
+                        map.setView(currentUserLatLng, 16);
+                    } else {
+                        userLocationMarker.setLatLng(currentUserLatLng);
+                    }
+
+                    if (isTrackingLock) map.panTo(currentUserLatLng);
+                },
+                (err) => { console.log("GPS Telemetry seeking..."); },
+                { enableHighAccuracy: true, maximumAge: 0, timeout: 6000 }
+            );
+        }
+
+        document.getElementById('telemetryBtn').addEventListener('click', () => {
+            isTrackingLock = true;
+            document.getElementById('telemetryBtn').classList.add('tracking');
+            if (currentUserLatLng) map.panTo(currentUserLatLng);
+        });
+
+        map.on('movestart', () => {
+            isTrackingLock = false;
+            document.getElementById('telemetryBtn').classList.remove('tracking');
+        });
+
+        // Anti-Sleep Hydration Hooks: Forces device hardware to wake up processing channels instantly upon web focus
+        window.addEventListener('focus', () => { startHardwareTracking(); syncPinsPipeline(); });
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) { startHardwareTracking(); syncPinsPipeline(); } });
+
+        // Initialize Engine Piping
+        async function syncPinsPipeline() {
+            try {
+                const records = await pb.collection('pins').getList(1, 100, { sort: '-created' });
+                records.items.forEach(drawPinOnMap);
+                if (currentMode === 'vibe') triggerMacroVibeCalculations();
+            } catch (err) { console.log("Network standby."); }
+        }
+
+        pb.collection('pins').subscribe('*', e => {
+            if (e.action === 'create' || e.action === 'update') drawPinOnMap(e.record);
+            if (currentMode === 'vibe') triggerMacroVibeCalculations();
+        });
+
+        startHardwareTracking();
+        syncPinsPipeline();
+        setInterval(syncPinsPipeline, 4000);
     </script>
 </body>
 </html>
