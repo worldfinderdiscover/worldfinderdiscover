@@ -262,15 +262,15 @@
             }, millisecondsLeft);
         }
 
-        // Global Delete execution for matched anonymous sessions
+        // Global Soft-Delete execution for matched anonymous sessions
         async function deletePinPermanently(pinId) {
             if (confirm("Do you want to clear this pin from the live map?")) {
                 try {
-                    await pb.collection('pins').delete(pinId);
-                    if (activeMarkers[pinId]) {
-                        map.removeLayer(activeMarkers[pinId]);
-                        delete activeMarkers[pinId];
-                    }
+                    // Instead of deleting the record, we update it securely
+                    await pb.collection('pins').update(pinId, {
+                        message: "DELETED_BY_OWNER",
+                        user_id: currentGuestID // Passes the valid signature required by the rule
+                    });
                 } catch (err) { 
                     console.error("Deletion rejected by engine:", err); 
                 }
