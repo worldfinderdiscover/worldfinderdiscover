@@ -2,20 +2,40 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>WorldFinder Proximity Engine</title>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WorldFinder</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #111; }
+        #map { height: 100vh; width: 100vw; }
+        #dropPinBtn {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; background: #007bff; color: white; border: none;
+            padding: 15px 30px; font-size: 16px; border-radius: 30px; font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer;
+        }
+        .user-location-dot {
+            background-color: #007bff; border: 2px solid white; border-radius: 50%;
+            box-shadow: 0 0 10px #007bff;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+    <button id="dropPinBtn">📌 Drop a Pin Here</button>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
+    <script src="https://cdn.jsdelivr.net/gh/pocketbase/js-sdk@latest/dist/pocketbase.umd.js"></script>
+
     <script>
         // Initialize map centered on the Tempe / ASU region
         const map = L.map('map', { zoomControl: false }).setView([33.4242, -111.9281], 16);
         
-        // Using OpenStreetMap directly to avoid overloading connection channels
+        // OpenStreetMap Tile Layer
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        // Hook up to your live cloud database instance
+        // Single master instance of PocketBase connection
         const pb = new PocketBase('https://worldfinder-worldfinder.hf.space');
         
         let currentUserLatLng = null;
@@ -54,26 +74,23 @@
             } catch (err) { console.log("Error loading pins:", err); }
         }
 
-        // Clean, un-nested live stream subscription
         function startLiveSync() {
             pb.collection('pins').subscribe('*', function (e) {
                 if (e.action === 'create') drawPinOnMap(e.record);
             }).catch(err => {
-                console.log("Realtime failed, falling back to background check.");
+                console.log("Realtime subscription standby.");
             });
         }
 
-        // Boot everything sequentially
+        // Sequential initialization
         loadExistingPins().then(() => {
             startLiveSync();
         });
 
-        // Background backup loop for mobile: checks for new pins every 15 seconds 
-        // if the live stream gets choked by the mobile network
+        // 15-second fallback polling loop for mobile browsers
         setInterval(async () => {
             try {
                 const records = await pb.collection('pins').getList(1, 10, { sort: '-created' });
-                // Clear map layers and redraw to keep it fresh without manual reloads
                 map.eachLayer((layer) => {
                     if (layer instanceof L.Marker && layer !== userLocationMarker) {
                         map.removeLayer(layer);
@@ -83,6 +100,7 @@
             } catch (e) { console.log("Backup sync paused."); }
         }, 15000);
 
+        // Geolocation setup
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
                 (position) => {
@@ -131,167 +149,4 @@
             }
 
             const message = prompt("What's happening over there?");
-            if (message) sendPinToDatabase(message, clickedLocation.lat, clickedLocation.lng);
-        });
-    </script>
-    <style>
-        body, html { 
-            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
-            background: #1a1a1a; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
-        #map { width: 100%; height: 100%; z-index: 1; }
-        
-        .mobile-ui-container {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; width: 90%; max-width: 400px; display: flex; flex-direction: column; gap: 12px;
-        }
-        .action-btn {
-            background: #ff5a5f; color: white; border: none; padding: 16px;
-            border-radius: 12px; font-size: 16px; font-weight: bold;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer; text-align: center;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .action-btn:active { background: #e04e52; transform: scale(0.98); }
-
-        .user-location-dot {
-            background: #007aff; border: 3px solid white; border-radius: 50%;
-            box-shadow: 0 0 10px rgba(0,122,255,0.6);
-        }
-    </style>
-</head>
-<body>
-
-    <div id="map"></div>
-
-    <div class="mobile-ui-container">
-        <button class="action-btn" id="dropPinBtn">📍 Drop Pin at My Location</button>
-    </div>
-
-    <script>
-        // Initialize map centered roughly on the Tempe / ASU region
-        const map = L.map('map', { zoomControl: false }).setView([33.4242, -111.9281], 16);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-
-        // Hook up to your live cloud database instance
-        const pb = new PocketBase('https://worldfinder-worldfinder.hf.space');
-        
-        let currentUserLatLng = null;
-        let userLocationMarker = null;
-        
-        const MAX_RADIUS_METERS = 200; 
-
-        function drawPinOnMap(pinData) {
-    const createdTime = new Date(pinData.created); 
-    const lifespan = 60 * 60 * 1000; // 1 hour in milliseconds
-    const expTime = new Date(createdTime.getTime() + lifespan);
-    const expTimeString = expTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-
-    const currentTime = new Date();
-    const millisecondsLeft = expTime.getTime() - currentTime.getTime();
-
-    // If it's already expired by more than a minute, don't even draw it
-    if (millisecondsLeft <= -60000) return; 
-
-    // Create and add the marker to the map
-    const marker = L.marker([pinData.lat, pinData.lng]).addTo(map).bindPopup(`
-        <div style="font-family: sans-serif;">
-            <strong>${pinData.message}</strong><br>
-            <span style="color: red; font-size: 11px; font-weight: bold;">⏱️ Expires at ${expTimeString}</span>
-        </div>
-    `);
-
-    // --- THE LIVE CLEANUP FIX ---
-    // If the pin is still alive, set a live countdown timer in the browser
-    if (millisecondsLeft > 0) {
-        setTimeout(() => { 
-            map.removeLayer(marker); 
-            console.log(`Pin "${pinData.message}" expired and was removed in real-time.`);
-        }, millisecondsLeft);
-    }
-}
-        async function loadExistingPins() {
-            try {
-                const records = await pb.collection('pins').getList(1, 50, { sort: '-created' });
-                records.items.forEach(pinData => {
-                    if (pinData.lat && pinData.lng) drawPinOnMap(pinData);
-                });
-            } catch (err) { console.log("Error pulling historical pins:", err); }
-        }
-        loadExistingPins();
-
-        function connectRealtimeStream() {
-    console.log("Initializing live map sync layer...");
-    
-    pb.collection('pins').subscribe('*', function (e) {
-        if (e.action === 'create') {
-            console.log("New pin received via live stream:", e.record);
-            drawPinOnMap(e.record);
-        }
-    }).then(() => {
-        console.log("Real-time stream successfully established on this device!");
-    }).catch((err) => {
-        console.log("Stream handshake paused. Retrying in 3 seconds...", err);
-        // Automatically attempts to reconnect if a mobile network stutter drops the connection
-        setTimeout(connectRealtimeStream, 3000);
-    });
-}
-
-// Fire up the stream layer once the initial database check completes
-bootstrapDatabase().then(() => {
-    loadExistingPins();
-    connectRealtimeStream(); // Replaces the old loose subscription block
-});
-        if (navigator.geolocation) {
-            navigator.geolocation.watchPosition(
-                (position) => {
-                    const lat = position.coords.latitude;
-                    const lng = position.coords.longitude;
-                    currentUserLatLng = [lat, lng];
-
-                    if (!userLocationMarker) {
-                        map.setView(currentUserLatLng, 17);
-                        const blueDotIcon = L.divIcon({ className: 'user-location-dot', iconSize: [14, 14] });
-                        userLocationMarker = L.marker(currentUserLatLng, { icon: blueDotIcon }).addTo(map);
-                    } else {
-                        userLocationMarker.setLatLng(currentUserLatLng);
-                    }
-                },
-                (error) => { console.log("GPS signal unavailable."); },
-                { enableHighAccuracy: true }
-            );
-        }
-
-        async function sendPinToDatabase(message, lat, lng) {
-            try {
-                await pb.collection('pins').create({ message: message, lat: lat, lng: lng });
-            } catch (err) { alert("Database offline or pin rejected!"); }
-        }
-
-        document.getElementById('dropPinBtn').addEventListener('click', () => {
-            if (!currentUserLatLng) { alert("Waiting for GPS signal..."); return; }
-            const message = prompt("What's happening right here?");
-            if (message) sendPinToDatabase(message, currentUserLatLng[0], currentUserLatLng[1]);
-        });
-
-        map.on('click', function(e) {
-            if (!currentUserLatLng) {
-                alert("Can't verify your proximity because your device GPS is turned off.");
-                return;
-            }
-
-            const clickedLocation = e.latlng;
-            const userLocation = L.latLng(currentUserLatLng[0], currentUserLatLng[1]);
-            const distance = userLocation.distanceTo(clickedLocation);
-
-            if (distance > MAX_RADIUS_METERS) {
-                alert(`Too far away! You can only drop pins within ${MAX_RADIUS_METERS} meters of your physical location. (You are currently ${Math.round(distance)}m away)`);
-                return;
-            }
-
-            const message = prompt("What's happening over there?");
-            if (message) sendPinToDatabase(message, clickedLocation.lat, clickedLocation.lng);
-        });
-    </script>
-</body>
-</html>
+            if (message) sendPinToDatabase(message, clickedLocation.lat, clickedLocation.
