@@ -95,10 +95,28 @@
         }
         loadExistingPins();
 
-        pb.collection('pins').subscribe('*', function (e) {
-            if (e.action === 'create') drawPinOnMap(e.record);
-        });
+        function connectRealtimeStream() {
+    console.log("Initializing live map sync layer...");
+    
+    pb.collection('pins').subscribe('*', function (e) {
+        if (e.action === 'create') {
+            console.log("New pin received via live stream:", e.record);
+            drawPinOnMap(e.record);
+        }
+    }).then(() => {
+        console.log("Real-time stream successfully established on this device!");
+    }).catch((err) => {
+        console.log("Stream handshake paused. Retrying in 3 seconds...", err);
+        // Automatically attempts to reconnect if a mobile network stutter drops the connection
+        setTimeout(connectRealtimeStream, 3000);
+    });
+}
 
+// Fire up the stream layer once the initial database check completes
+bootstrapDatabase().then(() => {
+    loadExistingPins();
+    connectRealtimeStream(); // Replaces the old loose subscription block
+});
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
                 (position) => {
