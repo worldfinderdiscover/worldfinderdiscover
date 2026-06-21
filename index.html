@@ -8,7 +8,132 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
-    <script src="https://cdn.jsdelivr.net/gh/pocketbase/js-sdk@latest/dist/pocketbase.umd.js"></script>
+    <script>
+        // Initialize map centered on the Tempe / ASU region
+        const map = L.map('map', { zoomControl: false }).setView([33.4242, -111.9281], 16);
+        
+        // Using OpenStreetMap directly to avoid overloading connection channels
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        // Hook up to your live cloud database instance
+        const pb = new PocketBase('https://worldfinder-worldfinder.hf.space');
+        
+        let currentUserLatLng = null;
+        let userLocationMarker = null;
+        const MAX_RADIUS_METERS = 200; 
+
+        function drawPinOnMap(pinData) {
+            const createdTime = new Date(pinData.created); 
+            const lifespan = 60 * 60 * 1000; 
+            const expTime = new Date(createdTime.getTime() + lifespan);
+            const expTimeString = expTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+            const currentTime = new Date();
+            const millisecondsLeft = expTime.getTime() - currentTime.getTime();
+
+            if (millisecondsLeft <= -60000) return; 
+
+            const marker = L.marker([pinData.lat, pinData.lng]).addTo(map).bindPopup(`
+                <div style="font-family: sans-serif;">
+                    <strong>${pinData.message}</strong><br>
+                    <span style="color: red; font-size: 11px; font-weight: bold;">⏱️ Expires at ${expTimeString}</span>
+                </div>
+            `);
+
+            if (millisecondsLeft > 0) {
+                setTimeout(() => { map.removeLayer(marker); }, millisecondsLeft);
+            }
+        }
+
+        async function loadExistingPins() {
+            try {
+                const records = await pb.collection('pins').getList(1, 50, { sort: '-created' });
+                records.items.forEach(pinData => {
+                    if (pinData.lat && pinData.lng) drawPinOnMap(pinData);
+                });
+            } catch (err) { console.log("Error loading pins:", err); }
+        }
+
+        // Clean, un-nested live stream subscription
+        function startLiveSync() {
+            pb.collection('pins').subscribe('*', function (e) {
+                if (e.action === 'create') drawPinOnMap(e.record);
+            }).catch(err => {
+                console.log("Realtime failed, falling back to background check.");
+            });
+        }
+
+        // Boot everything sequentially
+        loadExistingPins().then(() => {
+            startLiveSync();
+        });
+
+        // Background backup loop for mobile: checks for new pins every 15 seconds 
+        // if the live stream gets choked by the mobile network
+        setInterval(async () => {
+            try {
+                const records = await pb.collection('pins').getList(1, 10, { sort: '-created' });
+                // Clear map layers and redraw to keep it fresh without manual reloads
+                map.eachLayer((layer) => {
+                    if (layer instanceof L.Marker && layer !== userLocationMarker) {
+                        map.removeLayer(layer);
+                    }
+                });
+                records.items.forEach(pinData => drawPinOnMap(pinData));
+            } catch (e) { console.log("Backup sync paused."); }
+        }, 15000);
+
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    currentUserLatLng = [lat, lng];
+
+                    if (!userLocationMarker) {
+                        map.setView(currentUserLatLng, 17);
+                        const blueDotIcon = L.divIcon({ className: 'user-location-dot', iconSize: [14, 14] });
+                        userLocationMarker = L.marker(currentUserLatLng, { icon: blueDotIcon }).addTo(map);
+                    } else {
+                        userLocationMarker.setLatLng(currentUserLatLng);
+                    }
+                },
+                (error) => { console.log("GPS signal unavailable."); },
+                { enableHighAccuracy: true }
+            );
+        }
+
+        async function sendPinToDatabase(message, lat, lng) {
+            try {
+                await pb.collection('pins').create({ message: message, lat: lat, lng: lng });
+            } catch (err) { alert("Database error: Could not save pin."); }
+        }
+
+        document.getElementById('dropPinBtn').addEventListener('click', () => {
+            if (!currentUserLatLng) { alert("Waiting for GPS signal..."); return; }
+            const message = prompt("What's happening right here?");
+            if (message) sendPinToDatabase(message, currentUserLatLng[0], currentUserLatLng[1]);
+        });
+
+        map.on('click', function(e) {
+            if (!currentUserLatLng) {
+                alert("Can't verify your proximity because your device GPS is turned off.");
+                return;
+            }
+
+            const clickedLocation = e.latlng;
+            const userLocation = L.latLng(currentUserLatLng[0], currentUserLatLng[1]);
+            const distance = userLocation.distanceTo(clickedLocation);
+
+            if (distance > MAX_RADIUS_METERS) {
+                alert(`Too far away! You can only drop pins within ${MAX_RADIUS_METERS} meters of your physical location.`);
+                return;
+            }
+
+            const message = prompt("What's happening over there?");
+            if (message) sendPinToDatabase(message, clickedLocation.lat, clickedLocation.lng);
+        });
+    </script>
     <style>
         body, html { 
             margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
