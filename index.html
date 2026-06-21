@@ -15,6 +15,7 @@
             height: 100%;
             background-color: #111111;
             overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
         #map {
             width: 100vw;
@@ -39,6 +40,11 @@
             font-weight: bold;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        #dropPinBtn:hover {
+            background: #0056b3;
+            transform: translateX(-50%) scale(1.03);
         }
         .user-location-dot {
             background-color: #007bff;
@@ -46,12 +52,119 @@
             border-radius: 50%;
             box-shadow: 0 0 10px #007bff;
         }
+
+        /* MODERN SLIDE-UP FORM PANEL */
+        #inputPanel {
+            position: absolute;
+            bottom: -350px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 400px;
+            background: #1a1f2c;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px 20px 20px 20px;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 1001;
+            box-shadow: 0 -10px 25px rgba(0,0,0,0.5);
+            transition: bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+        }
+        #inputPanel.active {
+            bottom: 30px;
+        }
+        #inputPanel input {
+            width: 100%;
+            background: #11141d;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            padding: 12px;
+            color: white;
+            box-sizing: border-box;
+            font-size: 14px;
+            margin-bottom: 12px;
+            outline: none;
+        }
+        #inputPanel select {
+            width: 100%;
+            background: #11141d;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            padding: 12px;
+            color: white;
+            box-sizing: border-box;
+            font-size: 14px;
+            margin-bottom: 15px;
+            outline: none;
+        }
+        .panel-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-secondary { background: #343a40; color: #ccc; }
+
+        /* NEON MULTI-TIER VISUAL GLOWS */
+        .neon-pin-icon {
+            background: #ff0055; border: 2px solid #fff; border-radius: 50%;
+            box-shadow: 0 0 12px #ff0055;
+        }
+        .pro-pin-icon {
+            background: #00e5ff; border: 2px solid #fff; border-radius: 50%;
+            box-shadow: 0 0 12px #00e5ff;
+        }
+        .anchor-pin-icon {
+            background: #ffea00; border: 2px solid #fff; border-radius: 50%;
+            box-shadow: 0 0 12px #ffea00;
+        }
+        .landmark-pin-icon {
+            background: #d500f9; border: 2px solid #fff; border-radius: 50%;
+            box-shadow: 0 0 12px #d500f9;
+        }
+
+        /* Dark Theme Popup Styles overriding Leaflet defaults */
+        .leaflet-popup-content-wrapper {
+            background: #1a1f2c !important;
+            color: white !important;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px !important;
+        }
+        .leaflet-popup-tip {
+            background: #1a1f2c !important;
+        }
     </style>
 </head>
 <body>
 
     <div id="map"></div>
     <button id="dropPinBtn">📌 Drop a Pin Here</button>
+
+    <div id="inputPanel">
+        <h4 style="margin: 0 0 10px 0; color: #fff; font-size: 16px;">Drop a Local Story</h4>
+        <input type="text" id="pinMessageInput" placeholder="What's happening right here?" maxlength="120">
+        
+        <label style="color: #888; font-size: 11px; display: block; margin-bottom: 5px; font-weight: bold; letter-spacing: 0.5px;">CHOOSE LIFESPAN</label>
+        <select id="pinTierSelect">
+            <option value="1">1 Hour — Free Pulse</option>
+            <option value="6">6 Hours — Pro Spot (Simulated $1)</option>
+            <option value="24">24 Hours — Anchor Spot (Simulated $2)</option>
+            <option value="168">1 Week — Landmark (Simulated $6)</option>
+        </select>
+
+        <div class="panel-actions">
+            <button class="btn btn-secondary" id="cancelPinBtn">Cancel</button>
+            <button class="btn btn-primary" id="submitPinBtn">Publish Pin</button>
+        </div>
+    </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/pocketbase/js-sdk@latest/dist/pocketbase.umd.js"></script>
@@ -71,48 +184,89 @@
         let userLocationMarker = null;
         const MAX_RADIUS_METERS = 200; 
 
-        // SMART TRACKING: Keeps an exact record of which pin IDs are currently drawn on screen
+        // SMART TRACKING: Tracks dynamic map instances
         const activeMarkers = {};
+        let pendingPinLatLng = null; // State variable holding layout coordinates while panel is open
 
-        // 3. Render Tracking Pin Data
+        // 3. Setup Anonymous Browser Identity Handshake
+        if (!localStorage.getItem('wf_guest_id')) {
+            localStorage.setItem('wf_guest_id', 'anon_' + Math.random().toString(36).substring(2, 15));
+        }
+        const currentGuestID = localStorage.getItem('wf_guest_id');
+        console.log("Session Identity Loaded:", currentGuestID);
+
+        // 4. Time-Aware Rendering Engine
         function drawPinOnMap(pinData) {
-            // If this exact pin ID is already drawn on the map, don't touch it
             if (activeMarkers[pinData.id]) return;
 
             const createdTime = new Date(pinData.created); 
-            const lifespan = 60 * 60 * 1000; 
-            const expTime = new Date(createdTime.getTime() + lifespan);
-            const expTimeString = expTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-
+            const hours = pinData.duration_hours || 1; // Pulls schema tier, defaults to 1h
+            const lifespanInMs = hours * 60 * 60 * 1000; 
+            const expirationTime = new Date(createdTime.getTime() + lifespanInMs);
+            
             const currentTime = new Date();
-            const millisecondsLeft = expTime.getTime() - currentTime.getTime();
+            const millisecondsLeft = expirationTime.getTime() - currentTime.getTime();
 
-            if (millisecondsLeft <= -60000) return; 
+            // If the pin expired while browser was offline, ignore it completely
+            if (millisecondsLeft <= 0) return; 
 
-            // Create and render the new marker
-            const marker = L.marker([pinData.lat, pinData.lng]).addTo(map).bindPopup(`
-                <div style="font-family: sans-serif;">
-                    <strong>${pinData.message}</strong><br>
-                    <span style="color: red; font-size: 11px; font-weight: bold;">⏱️ Expires at ${expTimeString}</span>
+            // Assign color class based on layout metrics
+            let pinStyle = 'neon-pin-icon';
+            let label = 'Live Pulse (Free)';
+            
+            if (hours === 6) { pinStyle = 'pro-pin-icon'; label = 'Pro Spot'; }
+            else if (hours === 24) { pinStyle = 'anchor-pin-icon'; label = 'Anchor Spot'; }
+            else if (hours === 168) { pinStyle = 'landmark-pin-icon'; label = 'Landmark Event'; }
+
+            const customIcon = L.divIcon({ className: pinStyle, iconSize: [12, 12] });
+
+            // Identity verification loop
+            const isOwner = pinData.user_id === currentGuestID;
+            const deleteButtonHtml = isOwner 
+                ? `<br><button onclick="deletePinPermanently('${pinData.id}')" style="margin-top: 10px; background: #ff0055; color: white; border: none; padding: 6px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; width: 100%;">Remove My Pin</button>` 
+                : '';
+
+            const expTimeString = expirationTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+            const marker = L.marker([pinData.lat, pinData.lng], { icon: customIcon }).addTo(map).bindPopup(`
+                <div style="font-family: sans-serif; min-width: 140px;">
+                    <span style="color: #888; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">${label}</span>
+                    <p style="margin: 6px 0; font-size: 14px; font-weight: 500; color: #fff;">${pinData.message}</p>
+                    <span style="color: rgba(255,255,255,0.6); font-size: 11px;">⏱️ Expires at ${expTimeString}</span>
+                    ${deleteButtonHtml}
                 </div>
             `);
 
-            // Save this marker to our smart tracking object using its unique database ID
             activeMarkers[pinData.id] = marker;
 
-            // Handle the real-time browser self-destruct countdown
-            if (millisecondsLeft > 0) {
-                setTimeout(() => { 
+            // Live browser self-destruct pruning sequence
+            setTimeout(() => { 
+                if (activeMarkers[pinData.id]) {
                     map.removeLayer(marker); 
-                    delete activeMarkers[pinData.id]; // Remove from tracking registry
-                }, millisecondsLeft);
+                    delete activeMarkers[pinData.id];
+                    console.log(`Pin ${pinData.id} automatically cleared.`);
+                }
+            }, millisecondsLeft);
+        }
+
+        // Global Delete execution for matched anonymous sessions
+        async function deletePinPermanently(pinId) {
+            if (confirm("Do you want to clear this pin from the live map?")) {
+                try {
+                    await pb.collection('pins').delete(pinId);
+                    if (activeMarkers[pinId]) {
+                        map.removeLayer(activeMarkers[pinId]);
+                        delete activeMarkers[pinId];
+                    }
+                } catch (err) { 
+                    console.error("Deletion rejected by engine:", err); 
+                }
             }
         }
 
-        // 4. Synchronization Handlers
+        // 5. Synchronization Handlers
         async function syncPinsPipeline() {
             try {
-                // Fetch the 50 most recent pins
                 const records = await pb.collection('pins').getList(1, 50, { sort: '-created' });
                 records.items.forEach(pinData => {
                     if (pinData.lat && pinData.lng) {
@@ -127,29 +281,26 @@
         function startLiveSync() {
             pb.collection('pins').subscribe('*', function (e) {
                 if (e.action === 'create') drawPinOnMap(e.record);
+                if (e.action === 'delete') {
+                    if (activeMarkers[e.record.id]) {
+                        map.removeLayer(activeMarkers[e.record.id]);
+                        delete activeMarkers[e.record.id];
+                    }
+                }
             }).catch(err => {
-                console.log("Realtime subscription routing limited. Relying on high-speed delta loop.");
+                console.log("Realtime subscription routing limited.");
             });
         }
 
-        // Run initial data population
-        syncPinsPipeline().then(() => {
-            startLiveSync();
-        });
-
-        // HIGH-SPEED SMART DELTA LOOP
-        // Instead of wiping the map every 15 seconds, we pull down fresh data every 2 seconds.
-        // The smart tracking object ensures new pins appear immediately without affecting old ones.
+        syncPinsPipeline().then(() => { startLiveSync(); });
         setInterval(syncPinsPipeline, 2000);
 
-        // 5. High-Precision Smoothed Geolocation Core with Laptop Fallback
+        // 6. High-Precision Smoothed Geolocation Core
         let targetLatLng = null;
         let animationFrameId = null;
 
-        // Smoothly slides the marker from its current position to the new target
         function smoothAnimateMarker() {
             if (!userLocationMarker || !targetLatLng) return;
-
             const currentLatLng = userLocationMarker.getLatLng();
             const deltaLat = targetLatLng[0] - currentLatLng.lat;
             const deltaLng = targetLatLng[1] - currentLatLng.lng;
@@ -167,18 +318,14 @@
             }
         }
 
-        // SMART LOCALIZATION ROUTER
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
                 (position) => {
                     let lat = position.coords.latitude;
                     let lng = position.coords.longitude;
 
-                    // LAPTOP/WI-FI FALLBACK: If signal accuracy is broad (like sitting inside a cafe on Wi-Fi)
-                    // We lock the position to the Tempe / Chill Room workspace baseline so testing doesn't break.
                     if (position.coords.accuracy > 40) {
-                        console.log(`Wi-Fi precision broad (${Math.round(position.coords.accuracy)}m). Activating Tempe simulation anchor.`);
-                        lat = 33.4242; // Center anchor point near ASU campus/Chill Room area
+                        lat = 33.4242; 
                         lng = -111.9281;
                     }
 
@@ -190,14 +337,10 @@
                         const blueDotIcon = L.divIcon({ className: 'user-location-dot', iconSize: [14, 14] });
                         userLocationMarker = L.marker(targetLatLng, { icon: blueDotIcon }).addTo(map);
                     } else {
-                        if (!animationFrameId) {
-                            animationFrameId = requestAnimationFrame(smoothAnimateMarker);
-                        }
+                        if (!animationFrameId) animationFrameId = requestAnimationFrame(smoothAnimateMarker);
                     }
                 },
                 (error) => { 
-                    console.log("Hardware GPS timed out. Routing to static Tempe testing anchor.");
-                    // HARDWARE ISOLATION FALLBACK: If laptop completely blocks permissions
                     targetLatLng = [33.4242, -111.9281];
                     currentUserLatLng = [33.4242, -111.9281];
                     if (!userLocationMarker) {
@@ -206,47 +349,67 @@
                         userLocationMarker = L.marker(targetLatLng, { icon: blueDotIcon }).addTo(map);
                     }
                 },
-                { 
-                    enableHighAccuracy: true,
-                    maximumAge: 1000,
-                    timeout: 4000 
-                }
+                { enableHighAccuracy: true, maximumAge: 1000, timeout: 4000 }
             );
         }
-        // 6. Output Operations
-        async function sendPinToDatabase(message, lat, lng) {
-            try {
-                const newRecord = await pb.collection('pins').create({ message: message, lat: lat, lng: lng });
-                // Instantly draw your own dropped pin locally so you get zero layout lag
-                drawPinOnMap(newRecord);
-            } catch (err) { 
-                alert("Database transmission failed."); 
-            }
+
+        // 7. Input Drawer UI Panel Operations
+        function openInputDrawer(lat, lng) {
+            pendingPinLatLng = [lat, lng];
+            document.getElementById('pinMessageInput').value = "";
+            document.getElementById('pinTierSelect').value = "1";
+            document.getElementById('dropPinBtn').style.display = "none";
+            document.getElementById('inputPanel').classList.add('active');
         }
+
+        function closeInputDrawer() {
+            document.getElementById('inputPanel').classList.remove('active');
+            setTimeout(() => {
+                document.getElementById('dropPinBtn').style.display = "block";
+            }, 300);
+            pendingPinLatLng = null;
+        }
+
+        document.getElementById('cancelPinBtn').addEventListener('click', closeInputDrawer);
 
         document.getElementById('dropPinBtn').addEventListener('click', () => {
             if (!currentUserLatLng) { alert("Waiting for GPS telemetry signal..."); return; }
-            const message = prompt("What's happening right here?");
-            if (message) sendPinToDatabase(message, currentUserLatLng[0], currentUserLatLng[1]);
+            openInputDrawer(currentUserLatLng[0], currentUserLatLng[1]);
         });
 
         map.on('click', function(e) {
-            if (!currentUserLatLng) {
-                alert("Proximity verification requires hardware GPS tracking.");
-                return;
-            }
-
-            const clickedLocation = e.latlng;
-            const userLocation = L.latLng(currentUserLatLng[0], currentUserLatLng[1]);
-            const distance = userLocation.distanceTo(clickedLocation);
-
+            if (!currentUserLatLng) { alert("Proximity verification requires hardware GPS tracking."); return; }
+            
+            const distance = L.latLng(currentUserLatLng[0], currentUserLatLng[1]).distanceTo(e.latlng);
             if (distance > MAX_RADIUS_METERS) {
-                alert(`Target distance is beyond your verified physical proximity boundary.`);
+                alert("Target distance is beyond your verified physical proximity boundary.");
                 return;
             }
+            openInputDrawer(e.latlng.lat, e.latlng.lng);
+        });
 
-            const message = prompt("What's happening over there?");
-            if (message) sendPinToDatabase(message, clickedLocation.lat, clickedLocation.lng);
+        // 8. Output Database Transmission Operations
+        document.getElementById('submitPinBtn').addEventListener('click', async () => {
+            const message = document.getElementById('pinMessageInput').value.trim();
+            const durationHours = parseInt(document.getElementById('pinTierSelect').value);
+            
+            if (!message) { alert("Please type a local story update."); return; }
+            if (!pendingPinLatLng) return;
+
+            try {
+                const newRecord = await pb.collection('pins').create({ 
+                    message: message, 
+                    lat: pendingPinLatLng[0], 
+                    lng: pendingPinLatLng[1],
+                    duration_hours: durationHours,
+                    user_id: currentGuestID
+                });
+                
+                drawPinOnMap(newRecord);
+                closeInputDrawer();
+            } catch (err) { 
+                alert("Database transmission failed."); 
+            }
         });
     </script>
 </body>
