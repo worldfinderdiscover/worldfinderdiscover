@@ -1,21 +1,49 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WorldFinder</title>
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #111; }
-        #map { height: 100vh; width: 100vw; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #111111;
+            overflow: hidden;
+        }
+        #map {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
         #dropPinBtn {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; background: #007bff; color: white; border: none;
-            padding: 15px 30px; font-size: 16px; border-radius: 30px; font-weight: bold;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer;
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 30px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            cursor: pointer;
         }
         .user-location-dot {
-            background-color: #007bff; border: 2px solid white; border-radius: 50%;
+            background-color: #007bff;
+            border: 2px solid white;
+            border-radius: 50%;
             box-shadow: 0 0 10px #007bff;
         }
     </style>
@@ -29,19 +57,21 @@
     <script src="https://cdn.jsdelivr.net/gh/pocketbase/js-sdk@latest/dist/pocketbase.umd.js"></script>
 
     <script>
-        // Initialize map centered on the Tempe / ASU region
-        const map = L.map('map', { zoomControl: false }).setView([33.4242, -111.9281], 16);
-        
-        // OpenStreetMap Tile Layer
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        console.log("App initialization start...");
 
-        // Single master instance of PocketBase connection
+        // 1. Core Map Configuration
+        const map = L.map('map', { zoomControl: false }).setView([33.4242, -111.9281], 16);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        console.log("Leaflet map canvas mounted.");
+
+        // 2. Database Connection
         const pb = new PocketBase('https://worldfinder-worldfinder.hf.space');
         
         let currentUserLatLng = null;
         let userLocationMarker = null;
         const MAX_RADIUS_METERS = 200; 
 
+        // 3. Render Tracking Pin Data
         function drawPinOnMap(pinData) {
             const createdTime = new Date(pinData.created); 
             const lifespan = 60 * 60 * 1000; 
@@ -65,29 +95,33 @@
             }
         }
 
+        // 4. Synchronization Handlers
         async function loadExistingPins() {
             try {
                 const records = await pb.collection('pins').getList(1, 50, { sort: '-created' });
                 records.items.forEach(pinData => {
                     if (pinData.lat && pinData.lng) drawPinOnMap(pinData);
                 });
-            } catch (err) { console.log("Error loading pins:", err); }
+                console.log("Existing map pins synchronized.");
+            } catch (err) { 
+                console.log("Database fetch standby:", err); 
+            }
         }
 
         function startLiveSync() {
             pb.collection('pins').subscribe('*', function (e) {
                 if (e.action === 'create') drawPinOnMap(e.record);
             }).catch(err => {
-                console.log("Realtime subscription standby.");
+                console.log("Live stream standby.");
             });
         }
 
-        // Sequential initialization
+        // Run data pipeline
         loadExistingPins().then(() => {
             startLiveSync();
         });
 
-        // 15-second fallback polling loop for mobile browsers
+        // Background delta loop for mobile network drops (15s polling)
         setInterval(async () => {
             try {
                 const records = await pb.collection('pins').getList(1, 10, { sort: '-created' });
@@ -97,10 +131,12 @@
                     }
                 });
                 records.items.forEach(pinData => drawPinOnMap(pinData));
-            } catch (e) { console.log("Backup sync paused."); }
+            } catch (e) { 
+                console.log("Fallback sync idle."); 
+            }
         }, 15000);
 
-        // Geolocation setup
+        // 5. Geolocation Core
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
                 (position) => {
@@ -116,26 +152,29 @@
                         userLocationMarker.setLatLng(currentUserLatLng);
                     }
                 },
-                (error) => { console.log("GPS signal unavailable."); },
+                (error) => { console.log("Awaiting hardware GPS lock..."); },
                 { enableHighAccuracy: true }
             );
         }
 
+        // 6. Output Operations
         async function sendPinToDatabase(message, lat, lng) {
             try {
                 await pb.collection('pins').create({ message: message, lat: lat, lng: lng });
-            } catch (err) { alert("Database error: Could not save pin."); }
+            } catch (err) { 
+                alert("Database transmission failed."); 
+            }
         }
 
         document.getElementById('dropPinBtn').addEventListener('click', () => {
-            if (!currentUserLatLng) { alert("Waiting for GPS signal..."); return; }
+            if (!currentUserLatLng) { alert("Waiting for GPS telemetry signal..."); return; }
             const message = prompt("What's happening right here?");
             if (message) sendPinToDatabase(message, currentUserLatLng[0], currentUserLatLng[1]);
         });
 
         map.on('click', function(e) {
             if (!currentUserLatLng) {
-                alert("Can't verify your proximity because your device GPS is turned off.");
+                alert("Proximity verification requires hardware GPS tracking.");
                 return;
             }
 
@@ -144,9 +183,13 @@
             const distance = userLocation.distanceTo(clickedLocation);
 
             if (distance > MAX_RADIUS_METERS) {
-                alert(`Too far away! You can only drop pins within ${MAX_RADIUS_METERS} meters of your physical location.`);
+                alert(`Target distance is beyond your verified physical proximity boundary.`);
                 return;
             }
 
             const message = prompt("What's happening over there?");
-            if (message) sendPinToDatabase(message, clickedLocation.lat, clickedLocation.
+            if (message) sendPinToDatabase(message, clickedLocation.lat, clickedLocation.lng);
+        });
+    </script>
+</body>
+</html>
