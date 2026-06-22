@@ -226,21 +226,22 @@ function initHudInteractions() {
     });
 
     btnVibe.addEventListener('click', () => {
-        btnVibe.classList.add('active');
-        btnDrop.classList.remove('active');
-        
-        if (typeof closeInputDrawer === "function") closeInputDrawer();
-        if (drawerVibe) drawerVibe.classList.add('open');
+    btnVibe.classList.add('active');
+    btnDrop.classList.remove('active');
+    
+    if (typeof closeInputDrawer === "function") closeInputDrawer();
+    if (drawerVibe) drawerVibe.classList.add('open'); // 1. Panel slides up
 
-        if (appState.map) {
-            appState.map.flyTo([33.4242, -111.9281], 15, {
-                animate: true,
-                duration: 1.0
-            });
-        }
+    if (appState.map) {
+        appState.map.flyTo([33.4242, -111.9281], 15, {
+            animate: true,
+            duration: 1.0
+        });
+    }
 
-        renderProximityFeed();
-    });
+    // 🔥 THE FIX: Force the feed to render right now because the gate is now OPEN!
+    renderProximityFeed(); 
+});
 
     const vibeHandle = drawerVibe ? drawerVibe.querySelector('.drawer-handle') : null;
     if (vibeHandle) {
