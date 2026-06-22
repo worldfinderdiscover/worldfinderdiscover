@@ -137,35 +137,65 @@ function trackUserLocation() {
     );
 }
 
-// Update the master initialization loop to activate the canvas shell
-document.addEventListener('DOMContentLoaded', () => {
-    initDeviceIdentity();
-    initCanvasMap();
-    trackUserLocation();
-});
+// ==========================================
+// INTERACTIVE HUD FLUID DYNAMICS ENGINE
+// ==========================================
 
 /**
- * DIRECT EXPORT UTILITY (For the Lifeline Panel)
- * Allows users to copy their key to their notes for cross-device backup.
+ * 🎛️ HUD INTERACTION INITIALIZER
+ * Binds the floating pill buttons to slide the drawers and glide the map camera.
  */
-function getRecoveryToken() {
-    return appState.userSecret;
+function initHudInteractions() {
+    const btnDrop = document.getElementById('btn-drop-pulse');
+    const btnVibe = document.getElementById('btn-catch-vibe');
+    const drawerDrop = document.getElementById('drawer-drop');
+    const drawerVibe = document.getElementById('drawer-vibe');
+
+    // Prevent clicks from falling through to the interactive map canvas below
+    document.getElementById('action-pill').style.pointerEvents = 'auto';
+    drawerDrop.style.pointerEvents = 'auto';
+    drawerVibe.style.pointerEvents = 'auto';
+
+    /**
+     * STATE 1: Drop a Pulse Activated (Micro view)
+     */
+    btnDrop.addEventListener('click', () => {
+        btnDrop.classList.add('active');
+        btnVibe.classList.remove('active');
+        drawerDrop.classList.add('open');
+        drawerVibe.classList.remove('open');
+
+        // Snap the map camera smoothly down to where the user is walking
+        if (appState.currentCoords.lat && appState.map) {
+            appState.map.flyTo([appState.currentCoords.lat, appState.currentCoords.lng], 17, {
+                animate: true,
+                duration: 1.0
+            });
+        }
+    });
+
+    /**
+     * STATE 2: Catch a Vibe Activated (Macro view)
+     */
+    btnVibe.addEventListener('click', () => {
+        btnVibe.classList.add('active');
+        btnDrop.classList.remove('active');
+        drawerVibe.classList.add('open');
+        drawerDrop.classList.remove('open');
+
+        // Glide the camera out to a bird's-eye bird view to reveal crowd density
+        if (appState.map) {
+            appState.map.zoomOut(3, { animate: true, duration: 1.2 });
+        }
+    });
 }
 
-/**
- * DIRECT IMPORT UTILITY (For Session Recovery)
- * Overwrites local storage with a backup token to restore an identity.
- */
-function importRecoveryToken(newToken) {
-    if (newToken && newToken.length === 32) {
-        localStorage.setItem(CONFIG.STORAGE_KEY, newToken);
-        initDeviceIdentity(); // Re-initialize the state with the new token
-        return true;
-    }
-    return false;
-}
-
-// Kick off the identity engine immediately on page load
+// ==========================================
+// 🚀 UNIFIED APPLICATION MASTER BOOTSTRAP
+// ==========================================
 document.addEventListener('DOMContentLoaded', () => {
-    initDeviceIdentity();
+    initDeviceIdentity();   // 1. Mint or load anonymous identity token
+    initCanvasMap();        // 2. Load the optimized canvas map layout
+    trackUserLocation();    // 3. Fire up high-accuracy hardware GPS pipeline
+    initHudInteractions();  // 4. Bind layout drawer transitions
 });
