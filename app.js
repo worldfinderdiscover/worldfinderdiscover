@@ -41,19 +41,29 @@ function renderProximityFeed() {
     const feedContainer = document.getElementById('proximity-feed-list');
     if (!feedContainer) return;
 
-    // Completely removed the closed gate check so list components can generate context instantly
     feedContainer.innerHTML = "";
 
-    const activePins = Object.values(activeMarkers)
-        .filter(m => m.wFPayload)
-        .map(m => {
-            return {
-                text: m.wFPayload.message,
-                label: m.wFPayload.label,
-                timeStr: m.wFPayload.expTimeString,
-                latlng: m.getLatLng()
-            };
-        });
+    // Pull directly from what is visually active on the map canvas right now
+    const activePins = Object.values(activeMarkers).map(m => {
+        // 1. Create a temporary sandbox element to parse the marker's verified popup HTML
+        const sandbox = document.createElement('div');
+        sandbox.innerHTML = m.getPopup().getContent();
+        
+        // 2. Scrape the exact text strings that are currently matching the visual pin
+        const text = sandbox.querySelector('p')?.innerText || "Active Pulse";
+        const label = sandbox.querySelector('span')?.innerText || "Live Pulse";
+        
+        // Find the expiration string safely
+        const spans = sandbox.querySelectorAll('span');
+        const timeStr = spans.length > 1 ? spans[1].innerText : "⏱️ Active Now";
+        
+        return { 
+            text: text, 
+            label: label, 
+            timeStr: timeStr, 
+            latlng: m.getLatLng() 
+        };
+    });
 
     if (activePins.length === 0) {
         feedContainer.innerHTML = `
@@ -63,6 +73,7 @@ function renderProximityFeed() {
         return;
     }
 
+    // Render the verified map data directly into UI list rows
     activePins.forEach(pin => {
         const row = document.createElement('div');
         row.style.background = '#11141d';
@@ -76,7 +87,7 @@ function renderProximityFeed() {
         row.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                 <span style="color: #00e5ff; font-size: 10px; font-weight: bold; text-transform: uppercase;">${pin.label}</span>
-                <span style="color: rgba(255,255,255,0.4); font-size: 10px;">⏱️ Til ${pin.timeStr}</span>
+                <span style="color: rgba(255,255,255,0.4); font-size: 10px;">${pin.timeStr}</span>
             </div>
             <p style="margin: 0; font-size: 13px; color: #fff; font-weight: 500;">${pin.text}</p>
         `;
