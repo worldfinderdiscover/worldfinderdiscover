@@ -39,7 +39,6 @@ function initDeviceIdentity() {
 function initCanvasMap() {
     const asuCenter = [33.4242, -111.9281];
     
-    // Mount directly to your layout container ID `#map`
     appState.map = L.map('map', {
         preferCanvas: true,
         zoomControl: false,
@@ -50,7 +49,6 @@ function initCanvasMap() {
         maxZoom: 19
     }).addTo(appState.map);
 
-    // Map click lists a pending pin location boundary
     appState.map.on('click', function(e) {
         if (typeof openInputDrawer === "function") {
             openInputDrawer(e.latlng.lat, e.latlng.lng);
@@ -92,10 +90,23 @@ function drawPinOnMap(pinData) {
         if (activeMarkers[pinData.id]) {
             appState.map.removeLayer(activeMarkers[pinData.id]);
             delete activeMarkers[pinData.id];
+            renderProximityFeed();
         }
         return;
     }
-    if (activeMarkers[pinData.id]) return;
+    
+    // If the marker already exists on our map canvas, just update its raw payload state
+    if (activeMarkers[pinData.id]) {
+        const hours = pinData.duration_hours || 1;
+        let label = 'Live Pulse (Free)';
+        if (hours === 6) label = 'Pro Spot';
+        else if (hours === 24) label = 'Anchor Spot';
+        else if (hours === 168) label = 'Landmark Event';
+        
+        activeMarkers[pinData.id].wFPayload.message = pinData.message;
+        renderProximityFeed();
+        return;
+    }
 
     const createdTime = new Date(pinData.created); 
     const hours = pinData.duration_hours || 1; 
@@ -116,10 +127,8 @@ function drawPinOnMap(pinData) {
     const deleteButtonHtml = isOwner ? `<br><button onclick="deletePinPermanently('${pinData.id}')" style="margin-top: 10px; background: #ff0055; color: white; border: none; padding: 6px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; width: 100%;">Remove My Pin</button>` : '';
     const expTimeString = expirationTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
-    // Instantiating marker layer wrapper
     const marker = L.marker([pinData.lat, pinData.lng], { icon: customIcon });
     
-    // Attach clean database context directly onto memory array block
     marker.wFPayload = {
         message: pinData.message,
         hours: hours,
@@ -138,18 +147,13 @@ function drawPinOnMap(pinData) {
     `);
     
     activeMarkers[pinData.id] = marker;
+    renderProximityFeed();
 
-    // Live browser self-destruct pruning sequence
     setTimeout(() => { 
         if (activeMarkers[pinData.id]) {
             appState.map.removeLayer(marker); 
             delete activeMarkers[pinData.id];
-            
-            // Instantly update layout lists on item death thresholds
-            const drawerVibe = document.getElementById('drawer-vibe');
-            if (drawerVibe && drawerVibe.classList.contains('open')) {
-                renderProximityFeed();
-            }
+            renderProximityFeed();
         }
     }, millisecondsLeft);
 }
@@ -166,29 +170,27 @@ async function syncPinsPipeline() {
     try {
         const records = await pb.collection('pins').getList(1, 50, { sort: '-created' });
         records.items.forEach(pinData => { if (pinData.lat && pinData.lng) drawPinOnMap(pinData); });
-        
-        const drawerVibe = document.getElementById('drawer-vibe');
-        if (drawerVibe && drawerVibe.classList.contains('open')) {
-            renderProximityFeed();
-        }
+        renderProximityFeed();
     } catch (err) { console.log(err); }
 }
 
 function startLiveSync() {
+    // Subscribe directly to collection updates via SSE stream channel connection
     pb.collection('pins').subscribe('*', function (e) {
+        console.log("Real-time stream activity payload discovered:", e);
         if (e.action === 'create' || e.action === 'update') {
             drawPinOnMap(e.record);
         }
-        if (e.action === 'delete' && activeMarkers[e.record.id]) {
-            appState.map.removeLayer(activeMarkers[e.record.id]);
-            delete activeMarkers[e.record.id];
-        }
-        
-        const drawerVibe = document.getElementById('drawer-vibe');
-        if (drawerVibe && drawerVibe.classList.contains('open')) {
+        if (e.action === 'delete') {
+            if (activeMarkers[e.record.id]) {
+                appState.map.removeLayer(activeMarkers[e.record.id]);
+                delete activeMarkers[e.record.id];
+            }
             renderProximityFeed();
         }
-    }).catch(err => console.log(err));
+    }).catch(err => {
+        console.error("Realtime subscription channel disrupted. Falling back to polling loops.", err);
+    });
 }
 
 // ==========================================
@@ -230,7 +232,6 @@ function initHudInteractions() {
         if (typeof closeInputDrawer === "function") closeInputDrawer();
         if (drawerVibe) drawerVibe.classList.add('open');
 
-        // Center smoothly focused right above the active Tempe playground area
         if (appState.map) {
             appState.map.flyTo([33.4242, -111.9281], 15, {
                 animate: true,
@@ -241,7 +242,6 @@ function initHudInteractions() {
         renderProximityFeed();
     });
 
-    // Panel Handle Dismissal Listener Mechanics
     const vibeHandle = drawerVibe ? drawerVibe.querySelector('.drawer-handle') : null;
     if (vibeHandle) {
         vibeHandle.style.cursor = 'pointer';
@@ -258,17 +258,16 @@ function initHudInteractions() {
     }
 }
 
-/**
- * CLEAN REAL-TIME PROXIMITY LIST RENDERER
- * Reads data contexts directly out of localized application memory state
- */
 function renderProximityFeed() {
     const feedContainer = document.getElementById('proximity-feed-list');
     if (!feedContainer) return;
 
+    // Check if the vibe drawer panel component is visible before drawing layout rows
+    const drawerVibe = document.getElementById('drawer-vibe');
+    if (!drawerVibe || !drawerVibe.classList.contains('open')) return;
+
     feedContainer.innerHTML = "";
 
-    // Array parse loop extracts structured variables cleanly out of in-memory variables
     const activePins = Object.values(activeMarkers)
         .filter(m => m.wFPayload)
         .map(m => {
@@ -327,5 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
     trackUserLocation();
     initHudInteractions();
     syncPinsPipeline().then(() => { startLiveSync(); });
-    setInterval(syncPinsPipeline, 4000);
+    
+    // Fallback Polling Intervaller to sync state if websockets disconnect
+    setInterval(syncPinsPipeline, 3000);
 });
