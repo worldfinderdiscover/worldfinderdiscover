@@ -167,27 +167,41 @@ function initHudInteractions() {
     const btnDrop = document.getElementById('btn-drop-pulse');
     const btnVibe = document.getElementById('btn-catch-vibe');
     const drawerVibe = document.getElementById('drawer-vibe');
+    // Targeted your input panel element correctly here:
+    const drawerDrop = document.getElementById('inputPanel'); 
 
+    // Prevent clicks from falling through to the interactive map canvas below
     document.getElementById('action-pill').style.pointerEvents = 'auto';
-    drawerVibe.style.pointerEvents = 'auto';
+    if (drawerVibe) drawerVibe.style.pointerEvents = 'auto';
+    if (drawerDrop) drawerDrop.style.pointerEvents = 'auto';
 
     btnDrop.addEventListener('click', () => {
         btnDrop.classList.add('active');
         btnVibe.classList.remove('active');
-        drawerVibe.classList.remove('open');
-
+        if (drawerVibe) drawerVibe.classList.remove('open');
+        
+        // Open the submission panel automatically if they click 'Drop a Pulse'
         if (appState.currentCoords.lat && appState.map) {
             appState.map.flyTo([appState.currentCoords.lat, appState.currentCoords.lng], 17, {
                 animate: true,
                 duration: 1.0
             });
+            // Automatically triggers your open sequence at your live location
+            if (typeof openInputDrawer === "function") {
+                openInputDrawer(appState.currentCoords.lat, appState.currentCoords.lng);
+            }
+        } else {
+            alert("Waiting for GPS telemetry signal...");
         }
     });
 
     btnVibe.addEventListener('click', () => {
         btnVibe.classList.add('active');
         btnDrop.classList.remove('active');
-        drawerVibe.classList.add('open');
+        
+        // Hide the submission form if it's open, and slide up the feed stream
+        if (typeof closeInputDrawer === "function") closeInputDrawer();
+        if (drawerVibe) drawerVibe.classList.add('open');
 
         if (appState.map) {
             appState.map.zoomOut(3, { animate: true, duration: 1.2 });
