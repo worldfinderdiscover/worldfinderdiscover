@@ -284,9 +284,6 @@ function renderProximityFeed() {
     const feedContainer = document.getElementById('proximity-feed-list');
     if (!feedContainer) return;
 
-    // Check if the vibe drawer panel component is visible before drawing layout rows
-    const drawerVibe = document.getElementById('drawer-vibe');
-    if (!drawerVibe || !drawerVibe.classList.contains('open')) return;
 
     feedContainer.innerHTML = "";
 
