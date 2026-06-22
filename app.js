@@ -167,7 +167,6 @@ function initHudInteractions() {
     const btnDrop = document.getElementById('btn-drop-pulse');
     const btnVibe = document.getElementById('btn-catch-vibe');
     const drawerVibe = document.getElementById('drawer-vibe');
-    // Targeted your input panel element correctly here:
     const drawerDrop = document.getElementById('inputPanel'); 
 
     // Prevent clicks from falling through to the interactive map canvas below
@@ -175,18 +174,19 @@ function initHudInteractions() {
     if (drawerVibe) drawerVibe.style.pointerEvents = 'auto';
     if (drawerDrop) drawerDrop.style.pointerEvents = 'auto';
 
+    /**
+     * STATE 1: DROP A PULSE ACTIVATED
+     */
     btnDrop.addEventListener('click', () => {
         btnDrop.classList.add('active');
         btnVibe.classList.remove('active');
         if (drawerVibe) drawerVibe.classList.remove('open');
         
-        // Open the submission panel automatically if they click 'Drop a Pulse'
         if (appState.currentCoords.lat && appState.map) {
             appState.map.flyTo([appState.currentCoords.lat, appState.currentCoords.lng], 17, {
                 animate: true,
                 duration: 1.0
             });
-            // Automatically triggers your open sequence at your live location
             if (typeof openInputDrawer === "function") {
                 openInputDrawer(appState.currentCoords.lat, appState.currentCoords.lng);
             }
@@ -195,17 +195,113 @@ function initHudInteractions() {
         }
     });
 
+    /**
+     * STATE 2: CATCH A VIBE ACTIVATED (Clean Macro Target & Feed Fetch)
+     */
     btnVibe.addEventListener('click', () => {
         btnVibe.classList.add('active');
         btnDrop.classList.remove('active');
         
-        // Hide the submission form if it's open, and slide up the feed stream
         if (typeof closeInputDrawer === "function") closeInputDrawer();
         if (drawerVibe) drawerVibe.classList.add('open');
 
+        // FIX 1: Zoom cleanly to lock focus directly over the active Tempe/ASU testing grid
         if (appState.map) {
-            appState.map.zoomOut(3, { animate: true, duration: 1.2 });
+            appState.map.flyTo([33.4242, -111.9281], 14, {
+                animate: true,
+                duration: 1.0
+            });
         }
+
+        // FIX 3: Instantly render the active proximity streams inside the feed
+        renderProximityFeed();
+    });
+
+    /**
+     * FIX 2: PANEL CLOSING MECHANICS
+     * Clicking the drawer's top structural handle slider acts as a manual toggle dismissal
+     */
+    const vibeHandle = drawerVibe ? drawerVibe.querySelector('.drawer-handle') : null;
+    if (vibeHandle) {
+        vibeHandle.style.cursor = 'pointer';
+        vibeHandle.style.padding = '10px 0'; // Increase tap targets on mobile
+        vibeHandle.addEventListener('click', () => {
+            if (drawerVibe) drawerVibe.classList.remove('open');
+            btnVibe.classList.remove('active');
+            btnDrop.classList.add('active'); // Reset state seamlessly
+            
+            // Re-center map over your walking footstep tracking marker
+            if (appState.currentCoords.lat && appState.map) {
+                appState.map.flyTo([appState.currentCoords.lat, appState.currentCoords.lng], 17, { animate: true });
+            }
+        });
+    }
+}
+
+/**
+ * FIX 3: DYNAMIC LOCAL PULSE STREAM GENERATOR
+ * Fetches data streams out of activeMarkers state and updates the list viewport.
+ */
+function renderProximityFeed() {
+    const feedContainer = document.getElementById('proximity-feed-list');
+    if (!feedContainer) return;
+
+    // Flush the placeholder default template strings
+    feedContainer.innerHTML = "";
+
+    // Pull records out of the runtime pipeline cache 
+    const activePins = Object.values(activeMarkers).map(m => {
+        // Leaflet anchors data context elements in the popup engine properties
+        const div = document.createElement('div');
+        div.innerHTML = m.getPopup().getContent();
+        
+        const text = div.querySelector('p')?.innerText || "Active Pulse";
+        const label = div.querySelector('span')?.innerText || "Live Pulse";
+        const timeStr = div.querySelectorAll('span')[1]?.innerText || "";
+        
+        return { text, label, timeStr, latlng: m.getLatLng() };
+    });
+
+    if (activePins.length === 0) {
+        feedContainer.innerHTML = `
+            <p style="color: #666; font-size: 13px; text-align: center; margin-top: 30px;">
+                No active pulses in the Tempe area right now. Go drop one!
+            </p>`;
+        return;
+    }
+
+    // Build functional UI row blocks dynamically for every live story item
+    activePins.forEach(pin => {
+        const row = document.createElement('div');
+        row.style.background = '#11141d';
+        row.style.border = '1px solid rgba(255,255,255,0.05)';
+        row.style.borderRadius = '12px';
+        row.style.padding = '12px';
+        row.style.marginBottom = '10px';
+        row.style.cursor = 'pointer';
+        row.style.transition = 'background 0.2s';
+
+        row.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span style="color: #00e5ff; font-size: 10px; font-weight: bold; text-transform: uppercase;">${pin.label}</span>
+                <span style="color: #555; font-size: 10px;">${pin.timeStr}</span>
+            </div>
+            <p style="margin: 0; font-size: 13px; color: #fff; font-weight: 500;">${pin.text}</p>
+        `;
+
+        // Interactive Focus Link: Clicking a list row flies the map directly onto that pin's location!
+        row.addEventListener('click', () => {
+            if (appState.map) {
+                appState.map.flyTo(pin.latlng, 18, { animate: true });
+                // Automatically flash open the marker's popup bubble
+                Object.values(activeMarkers).find(m => m.getLatLng().equals(pin.latlng))?.openPopup();
+            }
+        });
+
+        row.addEventListener('mouseenter', () => row.style.background = 'rgba(255,255,255,0.03)');
+        row.addEventListener('mouseleave', () => row.style.background = '#11141d');
+
+        feedContainer.appendChild(row);
     });
 }
 
