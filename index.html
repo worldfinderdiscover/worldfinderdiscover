@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WorldFinder</title>
+    <title>WorldFinder - NextGen</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -15,7 +15,7 @@
             height: 100%;
             background-color: #111111;
             overflow: hidden;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
         #map {
             width: 100vw;
@@ -39,128 +39,162 @@
         #action-pill {
             background: rgba(26, 31, 44, 0.95);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 40px;
-            padding: 6px;
-            display: flex;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        }
-        .pill-toggle {
-            background: transparent;
-            border: none;
-            color: rgba(255, 255, 255, 0.6);
             padding: 12px 24px;
-            font-size: 14px;
-            font-weight: 700;
             border-radius: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            backdrop-filter: blur(10px);
+        }
+        .hud-btn {
+            background: none;
+            border: none;
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s ease-in-out;
+            padding: 8px 16px;
+            border-radius: 20px;
+            transition: background 0.2s;
         }
-        .pill-toggle.active {
-            background: #00e5ff;
-            color: #11141d;
-            box-shadow: 0 2px 12px rgba(0, 229, 255, 0.4);
+        .hud-btn:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        #pulse-btn {
+            background: #ff4757;
+        }
+        #pulse-btn:hover {
+            background: #ff6b81;
         }
 
-        .user-location-dot {
-            background-color: #007bff;
-            border: 2px solid white;
-            border-radius: 50%;
-            box-shadow: 0 0 10px #007bff;
+        /* SLIDING DRAWER CONTAINER */
+        #feed-drawer {
+            position: absolute;
+            top: 0;
+            right: -380px;
+            width: 340px;
+            height: 100% ;
+            background: rgba(17, 17, 22, 0.98);
+            border-left: 1px solid rgba(255, 255, 255, 0.05);
+            z-index: 1010;
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+        }
+        #feed-drawer.active {
+            transform: translateX(-380px);
+        }
+        .drawer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+        }
+        .drawer-header h3 {
+            margin: 0;
+            color: #ffffff;
+            font-size: 18px;
+        }
+        #proximity-feed-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        /* CLEAN STREAM ROW COMPONENT */
+        .feed-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 14px;
+            position: relative;
+            transition: border-color 0.2s;
+        }
+        .feed-card:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+        .feed-card p {
+            margin: 0 0 8px 0;
+            color: #e0e0e0;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .feed-meta {
+            font-size: 11px;
+            color: #888888;
+            display: flex;
+            gap: 10px;
+        }
+        .delete-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: none;
+            border: none;
+            color: #ff4757;
+            font-size: 11px;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .delete-btn:hover {
+            background: rgba(255, 71, 87, 0.1);
         }
 
-        /* DRAWER ENGINE (DRAWER A: INPUT OVERLAY) */
+        /* INPUT PANEL DRAWER */
         #inputPanel {
             position: absolute;
-            bottom: -450px;
+            bottom: -300px;
             left: 50%;
             transform: translateX(-50%);
             width: 90%;
             max-width: 400px;
             background: #1a1f2c;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 24px 24px 24px 24px;
-            padding: 24px;
-            box-sizing: border-box;
-            z-index: 1010;
-            box-shadow: 0 -10px 30px rgba(0,0,0,0.6);
-            transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1), bottom 0.35s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px 20px 0 0;
+            padding: 20px;
+            z-index: 1006;
+            transition: bottom 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
         }
-        /* Uses standard transform logic to match slider mechanics */
         #inputPanel.active {
-            bottom: 100px; 
-        }
-        #inputPanel input, #inputPanel select {
-            width: 100%;
-            background: #11141d;
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 8px;
-            padding: 12px;
-            color: white;
-            box-sizing: border-box;
-            font-size: 14px;
-            margin-bottom: 14px;
-            outline: none;
-        }
-        .panel-actions {
-            display: flex;
-            gap: 10px;
-        }
-        .btn {
-            flex: 1;
-            padding: 12px;
-            border-radius: 8px;
-            border: none;
-            font-weight: bold;
-            font-size: 14px;
-            cursor: pointer;
-        }
-        .btn-primary { background: #00e5ff; color: #11141d; }
-        .btn-secondary { background: #343a40; color: #ccc; }
-
-        /* DRAWER B: DISCOVERY SLIDING PANEL Framework */
-        .sliding-drawer {
-            position: absolute;
             bottom: 0;
+        }
+        #pinMessageInput {
             width: 100%;
-            max-width: 500px;
-            height: 38vh;
-            background: #1a1f2c;
-            border-top: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 24px 24px 0 0;
-            padding: 24px;
-            box-sizing: border-box;
-            color: white;
-            left: 50%;
-            transform: translate(-50%, 100%);
-            transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
-            z-index: 1009;
-            box-shadow: 0 -10px 30px rgba(0,0,0,0.6);
-        }
-        .sliding-drawer.open {
-            transform: translate(-50%, 0);
-        }
-        .drawer-handle {
-            width: 40px;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 2px;
-            margin: -12px auto 16px auto;
-        }
-
-        /* NEON MULTI-TIER VISUAL GLOWS */
-        .neon-pin-icon { background: #ff0055; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 12px #ff0055; }
-        .pro-pin-icon { background: #00e5ff; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 12px #00e5ff; }
-        .anchor-pin-icon { background: #ffea00; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 12px #ffea00; }
-        .landmark-pin-icon { background: #d500f9; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 12px #d500f9; }
-
-        .leaflet-popup-content-wrapper {
-            background: #1a1f2c !important;
-            color: white !important;
+            background: rgba(0,0,0,0.2);
             border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 12px !important;
+            border-radius: 8px;
+            color: white;
+            padding: 10px;
+            box-sizing: border-box;
+            margin-bottom: 12px;
+            font-family: inherit;
         }
-        .leaflet-popup-tip { background: #1a1f2c !important; }
+        .input-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        #pinTierSelect {
+            background: #2a3142;
+            border: 1px solid rgba(255,255,255,0.1);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+        }
     </style>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pocketbase/0.21.1/pocketbase.umd.js"></script>
 </head>
 <body>
 
@@ -168,93 +202,36 @@
 
     <div id="action-pill-container">
         <div id="action-pill">
-            <button id="btn-drop-pulse" class="pill-toggle active">Drop a Pulse</button>
-            <button id="btn-catch-vibe" class="pill-toggle">Catch a Vibe</button>
+            <button class="hud-btn" id="vibe-btn">Catch a Vibe</button>
+            <button class="hud-btn" id="pulse-btn">Drop Pulse</button>
         </div>
+    </div>
+
+    <div id="feed-drawer">
+        <div class="drawer-header">
+            <h3>Proximity Feed</h3>
+            <button class="hud-btn" id="close-drawer-btn">✕</button>
+        </div>
+        <div id="proximity-feed-list"></div>
     </div>
 
     <div id="inputPanel">
-        <div class="drawer-handle"></div>
-        <h4 style="margin: 0 0 12px 0; color: #fff; font-size: 16px;">Drop a Local Story</h4>
-        <input type="text" id="pinMessageInput" placeholder="What's happening right here?" maxlength="120">
-        
-        <label style="color: #888; font-size: 11px; display: block; margin-bottom: 6px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;">Choose Lifespan</label>
-        <select id="pinTierSelect">
-            <option value="1">1 Hour — Free Pulse</option>
-            <option value="6">6 Hours — Pro Spot (Simulated $1)</option>
-            <option value="24">24 Hours — Anchor Spot (Simulated $2)</option>
-            <option value="168">1 Week — Landmark (Simulated $6)</option>
-        </select>
-
-        <div class="panel-actions">
-            <button class="btn btn-secondary" id="cancelPinBtn">Cancel</button>
-            <button class="btn btn-primary" id="submitPinBtn">Publish Pin</button>
+        <h4 style="margin: 0 0 12px 0; color: white;">Drop Local Pulse</h4>
+        <textarea id="pinMessageInput" rows="3" placeholder="What's happening right here, right now?"></textarea>
+        <div class="input-row">
+            <label style="color: #aaa; font-size: 13px;">Lifespan Duration:</label>
+            <select id="pinTierSelect">
+                <option value="1">1 Hour (Flash)</option>
+                <option value="6">6 Hours (Event)</option>
+                <option value="24">24 Hours (Daily)</option>
+                <option value="168">1 Week (Weekly)</option>
+            </select>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button class="hud-btn" id="cancelPinBtn">Cancel</button>
+            <button class="hud-btn" id="submitPinBtn" style="background: #2ed573;">Publish</button>
         </div>
     </div>
-
-    <div id="drawer-vibe" class="sliding-drawer">
-        <div class="drawer-handle"></div>
-        <h4 style="margin: 0 0 12px 0; color: #fff; font-size: 16px;">Active Local Vibes</h4>
-        <div id="proximity-feed-list">
-            <p style="color: #666; font-size: 13px; text-align: center; margin-top: 30px;">
-                Tap a glowing cluster on the map to view the live area stream...
-            </p>
-        </div>
-    </div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/pocketbase/js-sdk@latest/dist/pocketbase.umd.js"></script>
-
-    <script>
-        // Open the input panel drawer for story submission
-        function openInputDrawer(lat, lng) {
-            if (!appState.currentCoords.lat) return;
-            
-            // Check if user clicked beyond the 200m physical boundary
-            const distance = L.latLng(appState.currentCoords.lat, appState.currentCoords.lng).distanceTo([lat, lng]);
-            if (distance > 200) {
-                alert("Target distance is beyond your verified physical proximity boundary.");
-                return;
-            }
-
-            appState.pendingPinLatLng = [lat, lng];
-            document.getElementById('pinMessageInput').value = "";
-            document.getElementById('pinTierSelect').value = "1";
-            document.getElementById('action-pill-container').style.display = "none";
-            document.getElementById('inputPanel').classList.add('active');
-        }
-
-        function closeInputDrawer() {
-            document.getElementById('inputPanel').classList.remove('active');
-            setTimeout(() => { document.getElementById('action-pill-container').style.display = "flex"; }, 300);
-            appState.pendingPinLatLng = null;
-        }
-
-        document.getElementById('cancelPinBtn').addEventListener('click', closeInputDrawer);
-
-        // Submit button pushes input values cleanly to the PocketBase backend
-        document.getElementById('submitPinBtn').addEventListener('click', async () => {
-            const message = document.getElementById('pinMessageInput').value.trim();
-            const durationHours = parseInt(document.getElementById('pinTierSelect').value);
-            
-            if (!message || !appState.pendingPinLatLng) return;
-            
-            try {
-                const newRecord = await pb.collection('pins').create({ 
-                    message: message, 
-                    lat: appState.pendingPinLatLng[0], 
-                    lng: appState.pendingPinLatLng[1], 
-                    duration_hours: durationHours, 
-                    user_id: appState.userId 
-                });
-                
-                if (typeof drawPinOnMap === "function") drawPinOnMap(newRecord);
-                closeInputDrawer();
-            } catch (err) { 
-                alert("Database transmission failed."); 
-            }
-        });
-    </script>
 
     <script src="app.js"></script>
 </body>
